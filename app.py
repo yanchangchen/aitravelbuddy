@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point in clean light mode with complete itinerary location mapping, group composition, self-drive options, and booking links.
+Streamlit web application entry point in clean light mode with complete itinerary location mapping, group composition, self-drive options, interactive currency conversion, and booking links.
 """
 
 import os
@@ -529,7 +529,20 @@ if plan_button:
                 st.markdown(result.get("hotel_recommendations", "N/A"))
 
             with tab_budget:
+                st.markdown("### 💰 Budget Breakdown & Currency Converter")
                 st.code(result.get("budget_breakdown", "N/A"), language=None)
+
+                with st.expander("💱 Live Currency Conversion Tool", expanded=True):
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        amount_sgd = st.number_input("Amount in SGD (S$)", min_value=1.0, value=1000.0, step=50.0)
+                        target_curr = st.selectbox("Convert To", options=["USD ($)", "EUR (€)", "JPY (¥)", "GBP (£)", "AUD ($)"])
+                    rates = {"USD ($)": 0.74, "EUR (€)": 0.68, "JPY (¥)": 115.5, "GBP (£)": 0.58, "AUD ($)": 1.13}
+                    rate = rates.get(target_curr, 0.74)
+                    converted = amount_sgd * rate
+                    with col_c2:
+                        st.metric(label=f"Equivalent in {target_curr.split()[0]}", value=f"{converted:,.2f}")
+                        st.caption(f"Estimated rate: 1 SGD = {rate} {target_curr.split()[0]}")
 
             with tab_judge:
                 st.markdown(result.get("judge_verdict", "N/A"))

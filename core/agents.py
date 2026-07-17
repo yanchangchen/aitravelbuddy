@@ -1,5 +1,6 @@
-"""Planning agent nodes for the Travel Buddy graph with purchasing agent and troubleshooting logging."""
+"""Planning agent nodes for the Travel Buddy graph with search caching, exponential backoff retries, and structured schemas."""
 
+import time
 from langchain_core.messages import HumanMessage
 from .personas import PERSONA_PROFILES
 from .utils import ensure_str, get_persona_context, get_critique_context
@@ -11,30 +12,56 @@ logger = get_logger("agents")
 _llm = None
 _search_tool = None
 
+# In-memory search cache to prevent redundant web searches
+_search_cache = {}
+
 
 def init(llm, search_tool):
     """Initialize the module with LLM and search tool instances."""
     global _llm, _search_tool
     _llm = llm
     _search_tool = search_tool
-    logger.info("Agents module initialized with LLM and Tavily search tool.")
+    logger.info("Agents module initialized with LLM and Tavily search tool (Caching & Retries enabled).")
 
 
 def _search(query: str) -> str:
-    """Run a Tavily search and return formatted context string."""
-    logger.info(f"Executing web search query: '{query}'")
+    """Run a Tavily search with in-memory caching to eliminate redundant network roundtrips."""
+    clean_query = query.strip().lower()
+    if clean_query in _search_cache:
+        logger.info(f"[Search Cache Hit] Query: '{query}'")
+        return _search_cache[clean_query]
+
+    logger.info(f"[Executing Web Search] Query: '{query}'")
     try:
         results = _search_tool.invoke(query)
         if isinstance(results, list):
-            logger.info(f"Web search returned {len(results)} result snippets.")
-            return "\n".join(
+            formatted_res = "\n".join(
                 f"- {r.get('content', r.get('snippet', ''))}" for r in results
             )
-        logger.info("Web search returned non-list result.")
-        return str(results)
+        else:
+            formatted_res = str(results)
+
+        _search_cache[clean_query] = formatted_res
+        logger.info(f"[Search Cached] Query: '{query}' ({len(results) if isinstance(results, list) else 1} snippets)")
+        return formatted_res
     except Exception as e:
         logger.warning(f"Web search failed: {e}. Falling back to LLM training knowledge.")
         return f"(Search unavailable: {e}. Use your training knowledge.)"
+
+
+def _invoke_llm_with_retry(prompt: str, max_retries: int = 3) -> str:
+    """Invoke LLM with exponential backoff retry resilience for rate limits and network glitches."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.debug(f"LLM Invocation attempt {attempt}/{max_retries}...")
+            response = _llm.invoke([HumanMessage(content=prompt)])
+            return ensure_str(response.content)
+        except Exception as e:
+            logger.warning(f"LLM invocation attempt {attempt} failed: {e}")
+            if attempt == max_retries:
+                logger.error("LLM max retries reached. Raising exception.")
+                raise e
+            time.sleep(2 ** attempt)  # Exponential backoff: 2s, 4s
 
 
 def itinerary_agent(state: dict) -> dict:
@@ -80,9 +107,7 @@ def itinerary_agent(state: dict) -> dict:
         f"- Include specific venue/attraction names, not generic placeholders"
     )
 
-    logger.debug("[Itinerary Agent] Invoking Gemini LLM...")
-    response = _llm.invoke([HumanMessage(content=prompt)])
-    result_text = ensure_str(response.content)
+    result_text = _invoke_llm_with_retry(prompt)
     logger.info(f"[Itinerary Agent] Generated itinerary ({len(result_text)} chars).")
 
     return {"itinerary": result_text, "status": "planning"}
@@ -128,9 +153,7 @@ def food_retail_agent(state: dict) -> dict:
         f"- Prices must be realistic in Singapore Dollars (SGD / S$)"
     )
 
-    logger.debug("[Food & Retail Agent] Invoking Gemini LLM...")
-    response = _llm.invoke([HumanMessage(content=prompt)])
-    result_text = ensure_str(response.content)
+    result_text = _invoke_llm_with_retry(prompt)
     logger.info(f"[Food & Retail Agent] Generated dining plan ({len(result_text)} chars).")
 
     return {"food_and_retail": result_text}
@@ -182,21 +205,14 @@ def hospitality_agent(state: dict) -> dict:
         f"- Prices must be realistic in Singapore Dollars (SGD / S$)"
     )
 
-    logger.debug("[Hospitality Agent] Invoking Gemini LLM...")
-    response = _llm.invoke([HumanMessage(content=prompt)])
-    result_text = ensure_str(response.content)
+    result_text = _invoke_llm_with_retry(prompt)
     logger.info(f"[Hospitality Agent] Generated hotel recommendations ({len(result_text)} chars).")
 
     return {"hotel_recommendations": result_text}
 
 
 def purchasing_agent(state: dict) -> dict:
-    """Specialized Purchasing & Booking Agent.
-
-    Sources flight costs from origin to destination, car rental costs (if self_drive is True),
-    and generates real clickable website URLs (with markdown links) for flights, hotels,
-    car rentals, and attraction tickets.
-    """
+    """Specialized Purchasing & Booking Agent."""
     origin = state.get("origin", "Singapore")
     destination = state.get("destination", "Tokyo, Japan")
     self_drive = state.get("self_drive", False)
@@ -251,9 +267,7 @@ def purchasing_agent(state: dict) -> dict:
         f"- If self-drive is Yes, calculate car rental + fuel/tolls in SGD"
     )
 
-    logger.debug("[Purchasing Agent] Invoking Gemini LLM...")
-    response = _llm.invoke([HumanMessage(content=prompt)])
-    result_text = ensure_str(response.content)
+    result_text = _invoke_llm_with_retry(prompt)
     logger.info(f"[Purchasing Agent] Generated purchasing guide ({len(result_text)} chars).")
 
     return {"purchasing_guide": result_text}
