@@ -5,16 +5,17 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange)](https://github.com/langchain-ai/langgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, and **Google Gemini** (`gemini-3.1-flash-lite`). It coordinates four specialized AI agents to generate personalized 5-day travel itineraries, dining recommendations, hotel options, round-trip airfare estimates from origin cities, self-drive car rental options in **Singapore Dollars (SGD / S$)** (with infinite budget by default), custom persona builders, purchasing agents with direct booking links, Google Maps visualizers, and an interactive Q&A Chat Assistant.
+**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, and **Google Gemini** (`gemini-3.1-flash-lite`). It coordinates four specialized AI agents to generate personalized 5-day travel itineraries, dining recommendations, hotel options, round-trip airfare estimates from origin cities for group compositions (Adults, Children, Infants), self-drive car rental options in **Singapore Dollars (SGD / S$)** (with infinite budget by default), custom persona builders, purchasing agents with direct booking links, Google Maps visualizers, and an interactive Q&A Chat Assistant.
 
 ---
 
 ## 🌟 Key Features
 
+- 👥 **Group Composition Controls:** Customizable Adults (default: 2), Children >2 yrs (default: 1), and Infants <2 yrs (default: 0).
+- 🔑 **Google Maps API Key Validated:** Streamlit secrets & sidebar key inputs fully compatible with Google Maps Embed API.
 - 🛒 **Purchasing & Booking Agent:** Dedicated expert agent sourcing real flight prices, car rental rates, and generating direct clickable HTTPS booking links for flights, hotels, car rentals, and attraction tickets.
 - ✈️ **Airfare & Source City Support:** Calculates round-trip flight costs from origin city (e.g. Singapore) to target destination.
 - 🚗 **Self-Drive Option (Car Rental):** Toggle self-drive mode to include car rental rates, fuel, and toll estimates in the trip budget.
-- 🔑 **Streamlit Secrets Integration:** Automatically reads `GOOGLE_API_KEY`, `TAVILY_API_KEY`, and optional `GOOGLE_MAPS_API_KEY` directly from `st.secrets`.
 - 🇸🇬 **Default SGD Currency (S$) & 5-Day Default:** Calculates all itinerary, dining, hotel, airfare, and car rental costs in Singapore Dollars for 5-day trips.
 - ♾️ **Flexible / No-Budget Default:** Unlimited budget mode active by default to focus on optimal experiences.
 - 🛠️ **Custom Persona Builder:** Select from 4 built-in personas or define your own custom persona rules, tempo, mobility, dining, and lodging preferences.
@@ -32,7 +33,7 @@ graph TD
     A["START"] --> B["Itinerary Agent (SGD)"]
     B --> C["Food & Retail Agent (SGD)"]
     C --> D["Hospitality Agent (SGD)"]
-    D --> E["Purchasing Agent (Flights & Car Rental Links)"]
+    D --> E["Purchasing Agent (Group Flights & Rental Links)"]
     E --> F{"Budget Guardrail"}
     
     F -->|"80-90% SGD Passed / Flexible"| G["Agent-as-Judge"]
@@ -67,13 +68,13 @@ aitravelbuddy/
 ├── core/
 │   ├── __init__.py          # Core package init
 │   ├── logger.py            # Troubleshooting logger & memory buffer
-│   ├── state.py             # LangGraph TravelBuddyState schema (with origin, self_drive, purchasing_guide)
+│   ├── state.py             # LangGraph TravelBuddyState schema (with num_adults, num_children, num_infants)
 │   ├── personas.py          # Demographic profile definitions (Single, Couple, Family, Backpacker)
 │   ├── utils.py             # Cost extraction, prompt formatting, DataFrame parser, text export
 │   ├── agents.py            # Itinerary, Food/Retail, Hospitality, and Purchasing agent nodes
 │   ├── evaluation.py        # Budget guardrail (with transport costs) & Agent-as-Judge nodes
 │   └── graph.py             # StateGraph setup & conditional routing logic (8 nodes)
-├── app.py                   # Streamlit web frontend (Purchasing Guide, Self-Drive, Q&A Chat, Maps, CSV)
+├── app.py                   # Streamlit web frontend (Travelers, Purchasing Guide, Self-Drive, Q&A Chat, Maps, CSV)
 ├── requirements.txt         # Project dependencies
 ├── specifications.md        # Comprehensive technical specification
 └── README.md                # Project documentation

@@ -79,10 +79,12 @@ def get_persona_context(state: dict, persona_profiles: dict) -> str:
     no_budget = state.get("no_budget", False)
     budget_desc = "Unlimited / Flexible" if no_budget else f"S$ {state['budget']:,.2f} {currency}"
     origin = state.get("origin", "Singapore")
+    travelers = state.get("travelers_summary", "2 Adults, 1 Child (>2 yrs)")
     self_drive = "YES (Car Rental)" if state.get("self_drive", False) else "NO (Public Transport/Taxi)"
 
     return (
         f"Traveler Persona: {profile.get('label', 'Custom Persona')}\n"
+        f"Group Composition: {travelers}\n"
         f"Origin City: {origin}\n"
         f"Pacing Tempo: {profile.get('tempo', 'medium')}\n"
         f"Mobility Preference: {profile.get('mobility', 'balanced')}\n"
@@ -118,7 +120,6 @@ def parse_itinerary_to_dataframe(itinerary_text: str, purchasing_guide_text: str
     current_day = "Day 1"
     current_theme = "Sightseeing"
 
-    # Add Airfare & Car Rental rows from purchasing guide if present
     if purchasing_guide_text:
         airfare_cost = extract_cost(purchasing_guide_text, "AIRFARE_TOTAL_SGD")
         if airfare_cost > 0:
@@ -126,7 +127,7 @@ def parse_itinerary_to_dataframe(itinerary_text: str, purchasing_guide_text: str
                 "Day": "Pre-Trip",
                 "Theme": "Transport & Flight",
                 "Time Slot": "Departure Flight",
-                "Activity Details": "Round-trip Airfare (Flights)",
+                "Activity Details": "Round-trip Airfare (Flights for Group)",
                 "Est. Cost (SGD)": airfare_cost,
             })
         car_rental_cost = extract_cost(purchasing_guide_text, "CAR_RENTAL_TOTAL_SGD")
@@ -198,6 +199,7 @@ def build_recommendations_text(result: dict, destination: str, budget: float,
     """Build the full text file content for travel recommendations."""
     status = result.get("status", "unknown")
     origin = result.get("origin", "Singapore")
+    travelers = result.get("travelers_summary", "2 Adults, 1 Child (>2 yrs)")
     self_drive = "YES (Car Rental)" if result.get("self_drive", False) else "NO"
     budget_str = "Flexible / Unlimited" if no_budget else f"S$ {budget:,.2f} {currency}"
 
@@ -208,6 +210,7 @@ def build_recommendations_text(result: dict, destination: str, budget: float,
     lines.append(f"  Generated:    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"  Origin:       {origin}")
     lines.append(f"  Destination:  {destination}")
+    lines.append(f"  Travelers:    {travelers}")
     lines.append(f"  Self-Drive:   {self_drive}")
     lines.append(f"  Budget:       {budget_str}")
     lines.append(f"  Dates:        {dates}")

@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point with origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, robust OpenStreetMap & Pydeck location maps, default 5-day duration & infinite budget default.
+Streamlit web application entry point with group composition (adults, children, infants), origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, robust OpenStreetMap & Pydeck location maps, default 5-day duration & infinite budget default.
 """
 
 import os
@@ -103,7 +103,7 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Airfare & Car Rental Options • Purchasing Agent Booking Links • Default SGD (S$)</p>',
+    'Group Composition (Adults & Children) • Airfare & Car Rental Options • Default SGD (S$)</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -164,6 +164,25 @@ with st.sidebar:
         """)
 
     st.markdown("---")
+    st.markdown("## 👥 Travelers & Group Composition")
+    col_a, col_c, col_i = st.columns(3)
+    with col_a:
+        num_adults = st.number_input("Adults", min_value=1, max_value=20, value=2, step=1)
+    with col_c:
+        num_children = st.number_input("Children (>2y)", min_value=0, max_value=20, value=1, step=1)
+    with col_i:
+        num_infants = st.number_input("Infants (<2y)", min_value=0, max_value=10, value=0, step=1)
+
+    travelers_parts = [f"{num_adults} Adult{'s' if num_adults>1 else ''}"]
+    if num_children > 0:
+        travelers_parts.append(f"{num_children} Child{'ren' if num_children>1 else ''} (>2 yrs)")
+    if num_infants > 0:
+        travelers_parts.append(f"{num_infants} Infant{'s' if num_infants>1 else ''} (<2 yrs)")
+    travelers_summary = ", ".join(travelers_parts)
+
+    st.caption(f"👥 Total Group: **{travelers_summary}**")
+
+    st.markdown("---")
     st.markdown("## ✈️ Trip & Transport Details")
 
     origin = st.text_input(
@@ -214,7 +233,7 @@ with st.sidebar:
     persona_display = st.radio(
         "Select Persona",
         options=list(persona_options.keys()),
-        index=1,
+        index=2,  # Default Family for 2 adults 1 child
     )
     persona = persona_options[persona_display]
 
@@ -269,7 +288,7 @@ NODE_LABELS = {
 # ── Main Execution ────────────────────────────────────────────────────────────
 if plan_button:
     clear_session_logs()
-    logger.info(f"Session started for origin='{origin}', destination='{destination}', persona='{persona}', self_drive={self_drive}, no_budget={no_budget}")
+    logger.info(f"Session started for origin='{origin}', destination='{destination}', travelers='{travelers_summary}', persona='{persona}', self_drive={self_drive}, no_budget={no_budget}")
 
     if not gemini_key or not tavily_key:
         logger.error("Missing Gemini or Tavily API key.")
@@ -312,13 +331,17 @@ if plan_button:
             st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
-    st.success("✅ 4 Agents initialized. Starting 5-day planning & purchasing execution...")
+    st.success(f"✅ 4 Agents initialized for {travelers_summary}. Starting 5-day planning & purchasing execution...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
     initial_state = {
         "origin": origin,
         "destination": destination,
         "budget": budget,
+        "num_adults": num_adults,
+        "num_children": num_children,
+        "num_infants": num_infants,
+        "travelers_summary": travelers_summary,
         "self_drive": self_drive,
         "no_budget": no_budget,
         "currency": "SGD",
@@ -399,7 +422,7 @@ if plan_button:
 
         if status == "approved":
             st.markdown(
-                '<span class="badge-approved">✅ TRIP PLAN APPROVED</span>',
+                f'<span class="badge-approved">✅ TRIP PLAN APPROVED for {travelers_summary}</span>',
                 unsafe_allow_html=True,
             )
 
@@ -420,7 +443,7 @@ if plan_button:
                 st.markdown(result.get("itinerary", "N/A"))
 
             with tab_booking:
-                st.markdown(f"### 🛒 Purchasing & Booking Guide ({origin} ✈️ {destination})")
+                st.markdown(f"### 🛒 Purchasing & Booking Guide ({travelers_summary} • {origin} ✈️ {destination})")
                 st.markdown(result.get("purchasing_guide", "N/A"))
 
             with tab_map:
@@ -465,7 +488,7 @@ if plan_button:
                     st.markdown(f"[👉 Open {destination} on OpenStreetMap](https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=12/{lat:.4f}/{lon:.4f})")
 
             with tab_table:
-                st.markdown("### 📊 Day-by-Day Tabular Itinerary with Transport & Airfare")
+                st.markdown(f"### 📊 Day-by-Day Tabular Itinerary for {travelers_summary}")
                 itinerary_text = result.get("itinerary", "")
                 guide_text = result.get("purchasing_guide", "")
                 df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
@@ -494,7 +517,7 @@ if plan_button:
 
             with tab_chat:
                 st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
-                st.caption(f"Ask follow-up travel questions about {destination}, packing, local transit, or customs!")
+                st.caption(f"Ask follow-up travel questions about {destination}, packing for {travelers_summary}, local transit, or family customs!")
 
                 if "chat_messages" not in st.session_state:
                     st.session_state.chat_messages = []
@@ -513,7 +536,7 @@ if plan_button:
                         with st.spinner("Searching & thinking..."):
                             try:
                                 from langchain_core.messages import HumanMessage, SystemMessage
-                                chat_context = f"Origin: {origin}\nDestination: {destination}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
+                                chat_context = f"Origin: {origin}\nDestination: {destination}\nTravelers: {travelers_summary}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
                                 search_res = search_tool.invoke(f"{destination} {user_query}")
                                 search_info = "\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
                                 prompt = f"Context:\n{chat_context}\nWeb Info:\n{search_info}\nUser Question: {user_query}\nAnswer helpfully as a travel expert."
@@ -592,8 +615,8 @@ else:
     with col2:
         st.markdown("""
         <div class="result-card">
-            <h3>✈️ Flight & Self-Drive Options</h3>
-            <p>Calculates airfare from source city + optional car rental & toll costs in SGD.</p>
+            <h3>✈️ Group Travelers & Self-Drive</h3>
+            <p>Customizable Adults, Children, and Infant counts + optional car rental & flight costs in SGD.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -613,7 +636,7 @@ else:
         A["START"] --> B["Itinerary Agent (SGD)"]
         B --> C["Food & Retail Agent (SGD)"]
         C --> D["Hospitality Agent (SGD)"]
-        D --> E["Purchasing Agent (Flights & Rental Links)"]
+        D --> E["Purchasing Agent (Group Flights & Rental Links)"]
         E --> F{"Budget Guardrail"}
         F -->|"Pass / Flexible"| G["Agent-as-Judge"]
         F -->|"Retry <= 3"| B
@@ -623,4 +646,4 @@ else:
         H --> J
     ```
     """)
-    st.info("👈 **Configure trip & transport details in the sidebar and click 'Plan My Trip' to start!**")
+    st.info("👈 **Configure travelers & trip details in the sidebar and click 'Plan My Trip' to start!**")
