@@ -1,6 +1,9 @@
 """Utility functions for the Travel Buddy agent system."""
 
 import re
+import json
+import urllib.parse
+import urllib.request
 from datetime import datetime
 import pandas as pd
 
@@ -48,6 +51,20 @@ def extract_cost(text: str, label: str) -> float:
         return float(amounts[-1].replace(",", ""))
 
     return 0.0
+
+
+def geocode_location(location_name: str):
+    """Geocode a location string to (lat, lon) tuple using OpenStreetMap Nominatim."""
+    try:
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(location_name)}&format=json&limit=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'TravelBuddyStreamlit/1.0'})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            if data:
+                return float(data[0]['lat']), float(data[0]['lon'])
+    except Exception:
+        pass
+    return None
 
 
 def get_persona_context(state: dict, persona_profiles: dict) -> str:

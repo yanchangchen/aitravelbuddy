@@ -1,12 +1,13 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point with origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, default 5-day duration & infinite budget default.
+Streamlit web application entry point with origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, robust OpenStreetMap & Pydeck location maps, default 5-day duration & infinite budget default.
 """
 
 import os
 import urllib.parse
 import streamlit as st
 import pandas as pd
+import pydeck as pdk
 from datetime import datetime
 
 from core.logger import get_logger, get_session_logs, clear_session_logs
@@ -159,7 +160,7 @@ with st.sidebar:
         3. Go to **APIs & Services > Library** and search for **Maps Embed API**. Click **Enable**.
         4. Go to **APIs & Services > Credentials** -> Click **+ Create Credentials > API key**.
         5. Copy your key into the field above or set `GOOGLE_MAPS_API_KEY` in `.streamlit/secrets.toml`.
-        *(If no key is provided, Travel Buddy falls back to standard web embedded maps).*
+        *(If no key is provided, Travel Buddy falls back to interactive OpenStreetMap & Pydeck views).*
         """)
 
     st.markdown("---")
@@ -295,6 +296,7 @@ if plan_button:
                 build_recommendations_text,
                 sanitize_filename,
                 parse_itinerary_to_dataframe,
+                geocode_location,
             )
 
             llm = ChatGoogleGenerativeAI(
@@ -422,16 +424,45 @@ if plan_button:
                 st.markdown(result.get("purchasing_guide", "N/A"))
 
             with tab_map:
-                st.markdown(f"### 📍 Google Maps Location Visualizer — {destination}")
+                st.markdown(f"### 📍 Interactive Location Map — {destination}")
                 encoded_dest = urllib.parse.quote(destination)
 
-                if gmaps_key:
-                    map_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
-                else:
-                    map_url = f"https://www.google.com/maps?q={encoded_dest}&output=embed"
+                coords = geocode_location(destination)
+                if not coords:
+                    coords = (35.6762, 139.6503)
 
-                st.components.v1.iframe(map_url, height=500, scrolling=True)
-                st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
+                lat, lon = coords
+                st.markdown(f"**Center Coordinates:** `{lat:.4f}, {lon:.4f}`")
+
+                # Layer 1: Pydeck 3D Scatterplot Map
+                map_df = pd.DataFrame([{"name": destination, "lat": lat, "lon": lon}])
+                view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=11, pitch=35)
+                layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=map_df,
+                    get_position=["lon", "lat"],
+                    get_color="[255, 107, 107, 220]",
+                    get_radius=500,
+                    pickable=True,
+                )
+                deck = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{name}"})
+                st.pydeck_chart(deck)
+
+                st.markdown("#### 🗺️ Interactive OpenStreetMap View")
+                osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={lon-0.08:.4f},{lat-0.08:.4f},{lon+0.08:.4f},{lat+0.08:.4f}&layer=mapnik&marker={lat:.4f},{lon:.4f}"
+                st.components.v1.iframe(osm_url, height=450, scrolling=False)
+
+                if gmaps_key:
+                    st.markdown("#### 🗺️ Google Maps Embed View")
+                    gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+                    st.components.v1.iframe(gmaps_url, height=450, scrolling=True)
+
+                st.markdown("#### 🔗 External Map Navigation")
+                col_gmap, col_osm = st.columns(2)
+                with col_gmap:
+                    st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
+                with col_osm:
+                    st.markdown(f"[👉 Open {destination} on OpenStreetMap](https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=12/{lat:.4f}/{lon:.4f})")
 
             with tab_table:
                 st.markdown("### 📊 Day-by-Day Tabular Itinerary with Transport & Airfare")
@@ -569,8 +600,8 @@ else:
     with col3:
         st.markdown("""
         <div class="result-card">
-            <h3>🛒 Direct Booking Links & CSV</h3>
-            <p>Direct HTTPS links for flights, hotels & car rental, with tabular CSV exports.</p>
+            <h3>📍 Multi-Layer Maps & CSV</h3>
+            <p>3D Pydeck maps, OpenStreetMap, Google Maps embeds, direct links, and CSV export.</p>
         </div>
         """, unsafe_allow_html=True)
 
