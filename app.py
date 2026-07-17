@@ -3,7 +3,10 @@ Travel Buddy — AI-Powered Multi-Agent Travel Planner
 Streamlit web application entry point.
 """
 
+import os
+import urllib.parse
 import streamlit as st
+import pandas as pd
 from datetime import datetime
 
 # ── Page Configuration ────────────────────────────────────────────────────────
@@ -17,11 +20,9 @@ st.set_page_config(
 # ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* Global font */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-    /* Header gradient */
     .main-header {
         background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 50%, #FFC857 100%);
         -webkit-background-clip: text;
@@ -36,10 +37,9 @@ st.markdown("""
         color: #8892A0;
         font-size: 1.1rem;
         margin-top: -10px;
-        margin-bottom: 30px;
+        margin-bottom: 25px;
     }
 
-    /* Card styling */
     .result-card {
         background: #1A1F2E;
         border-radius: 12px;
@@ -47,12 +47,8 @@ st.markdown("""
         margin: 12px 0;
         border: 1px solid #2A3040;
     }
-    .result-card h3 {
-        color: #FF8E53;
-        margin-top: 0;
-    }
+    .result-card h3 { color: #FF8E53; margin-top: 0; }
 
-    /* Status badges */
     .badge-approved {
         background: linear-gradient(135deg, #00C853, #69F0AE);
         color: #0E1117;
@@ -70,28 +66,25 @@ st.markdown("""
         display: inline-block;
     }
 
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background: #141821;
-    }
+    section[data-testid="stSidebar"] { background: #141821; }
 
-    /* Progress node labels */
-    .node-label {
-        font-weight: 600;
-        font-size: 0.95rem;
-    }
-
-    /* Hide Streamlit branding */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
 
-    /* Divider */
     .gradient-divider {
         height: 3px;
         background: linear-gradient(90deg, #FF6B6B, #FF8E53, #FFC857);
         border: none;
         border-radius: 2px;
         margin: 20px 0;
+    }
+
+    .map-frame {
+        border-radius: 12px;
+        border: 1px solid #2A3040;
+        overflow: hidden;
+        width: 100%;
+        height: 450px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -100,27 +93,55 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Powered by LangGraph & Gemini</p>',
+    'Default SGD (S$) • Google Maps Grounding</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
 
-# ── Sidebar: Inputs ──────────────────────────────────────────────────────────
+# ── Read Secrets / Sidebar Inputs ────────────────────────────────────────────
+def get_secret(key_name, default=""):
+    """Check Streamlit secrets first, then environment variables."""
+    try:
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+    except Exception:
+        pass
+    return os.environ.get(key_name, default)
+
+
+secret_gemini = get_secret("GOOGLE_API_KEY") or get_secret("GEMINI_API_KEY")
+secret_tavily = get_secret("TAVILY_API_KEY")
+secret_gmaps = get_secret("GOOGLE_MAPS_API_KEY") or get_secret("GMAPS_API_KEY")
+
 with st.sidebar:
-    st.markdown("## 🔐 API Keys")
-    gemini_key = st.text_input(
-        "Gemini API Key",
-        type="password",
-        placeholder="AIzaSy...",
-        help="Get your key at https://aistudio.google.com/apikey",
-    )
-    tavily_key = st.text_input(
-        "Tavily API Key",
-        type="password",
-        placeholder="tvly-...",
-        help="Get your key at https://tavily.com",
-    )
+    st.markdown("## 🔐 API Credentials")
+
+    if secret_gemini and secret_tavily:
+        st.success("🔑 API keys loaded from Streamlit Secrets!")
+        gemini_key = secret_gemini
+        tavily_key = secret_tavily
+        gmaps_key = secret_gmaps
+    else:
+        st.info("💡 Enter your API keys below (or set in `.streamlit/secrets.toml`).")
+        gemini_key = st.text_input(
+            "Gemini API Key",
+            value=secret_gemini,
+            type="password",
+            placeholder="AIzaSy...",
+        )
+        tavily_key = st.text_input(
+            "Tavily API Key",
+            value=secret_tavily,
+            type="password",
+            placeholder="tvly-...",
+        )
+        gmaps_key = st.text_input(
+            "Google Maps API Key (Optional)",
+            value=secret_gmaps,
+            type="password",
+            placeholder="AIzaSy... (for Maps Embed API)",
+        )
 
     st.markdown("---")
     st.markdown("## ✈️ Trip Details")
@@ -128,16 +149,24 @@ with st.sidebar:
     destination = st.text_input(
         "Destination",
         value="Tokyo, Japan",
-        placeholder="e.g., Paris, France",
+        placeholder="e.g., Tokyo, Japan or Paris, France",
     )
-    budget = st.number_input(
-        "Budget (USD)",
-        min_value=100.0,
-        max_value=100000.0,
-        value=3000.0,
-        step=100.0,
-        format="%.2f",
-    )
+
+    no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=False)
+
+    if not no_budget:
+        budget = st.number_input(
+            "Budget in Singapore Dollars (SGD / S$)",
+            min_value=100.0,
+            max_value=500000.0,
+            value=3000.0,
+            step=100.0,
+            format="%.2f",
+        )
+    else:
+        budget = 0.0
+        st.caption("ℹ️ Budget guardrail will be bypassed. Agents will focus on best experiences.")
+
     dates = st.text_input(
         "Travel Dates",
         value="March 10-15, 2025",
@@ -166,10 +195,10 @@ with st.sidebar:
 
 # ── Node display labels ──────────────────────────────────────────────────────
 NODE_LABELS = {
-    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning sightseeing & activities..."),
-    "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping..."),
-    "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation..."),
-    "budget_guardrail": ("💰", "Budget Guardrail", "Validating costs..."),
+    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning sightseeing & activities in SGD..."),
+    "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping in SGD..."),
+    "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation in SGD..."),
+    "budget_guardrail": ("💰", "Budget Guardrail", "Validating SGD costs & safety buffer..."),
     "agent_as_judge": ("⚖️", "Agent-as-Judge", "Evaluating persona compliance..."),
     "final_output": ("✨", "Final Output", "Compiling approved plan..."),
     "budget_busted_fallback": ("🚨", "Budget Busted", "Budget could not be reconciled."),
@@ -178,30 +207,29 @@ NODE_LABELS = {
 
 # ── Main Execution ────────────────────────────────────────────────────────────
 if plan_button:
-    # Validate inputs
     if not gemini_key or not tavily_key:
-        st.error("⚠️ Please provide both API keys in the sidebar.")
+        st.error("⚠️ Please provide Gemini and Tavily API keys in sidebar or Streamlit secrets.")
         st.stop()
     if not destination.strip():
         st.error("⚠️ Please enter a destination.")
         st.stop()
-    if not dates.strip():
-        st.error("⚠️ Please enter your travel dates.")
-        st.stop()
 
-    # Set API keys as environment variables
-    import os
     os.environ["GOOGLE_API_KEY"] = gemini_key
     os.environ["TAVILY_API_KEY"] = tavily_key
+    if gmaps_key:
+        os.environ["GOOGLE_MAPS_API_KEY"] = gmaps_key
 
-    # Lazy imports (only when running)
-    with st.spinner("Initializing AI agents..."):
+    with st.spinner("Initializing AI agents & LangGraph pipeline..."):
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_community.tools.tavily_search import TavilySearchResults
             from core.graph import build_graph
             from core.personas import PERSONA_PROFILES
-            from core.utils import build_recommendations_text, sanitize_filename
+            from core.utils import (
+                build_recommendations_text,
+                sanitize_filename,
+                parse_itinerary_to_dataframe,
+            )
 
             llm = ChatGoogleGenerativeAI(
                 model="gemini-3.1-flash-lite",
@@ -211,16 +239,17 @@ if plan_button:
             search_tool = TavilySearchResults(max_results=3)
             app = build_graph(llm, search_tool)
         except Exception as e:
-            st.error(f"❌ Failed to initialize: {e}")
+            st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
-    st.success("✅ Agents initialized. Starting planning...")
+    st.success("✅ Agents initialized. Starting execution...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
-    # ── Initialize state ──────────────────────────────────────────────────
     initial_state = {
         "destination": destination,
         "budget": budget,
+        "no_budget": no_budget,
+        "currency": "SGD",
         "dates": dates,
         "persona": persona,
         "itinerary": "",
@@ -233,7 +262,6 @@ if plan_button:
         "judge_verdict": "",
     }
 
-    # ── Stream execution ──────────────────────────────────────────────────
     progress_container = st.container()
     result_container = st.container()
 
@@ -244,7 +272,7 @@ if plan_button:
 
         completed_nodes = []
         node_count = 0
-        total_expected = 5  # Minimum nodes in a successful run
+        total_expected = 5
 
         try:
             for step_output in app.stream(initial_state):
@@ -253,42 +281,32 @@ if plan_button:
                     icon, label, desc = NODE_LABELS.get(
                         node_name, ("⚙️", node_name, "Processing...")
                     )
-
-                    # Update progress
                     progress = min(node_count / total_expected, 1.0)
                     progress_bar.progress(progress)
-                    status_text.markdown(
-                        f"**{icon} {label}** — {desc}"
-                    )
+                    status_text.markdown(f"**{icon} {label}** — {desc}")
                     completed_nodes.append((node_name, node_output))
 
-                    # Show budget attempt info inline
                     if node_name == "budget_guardrail" and isinstance(node_output, dict):
                         attempt = node_output.get("budget_attempts", 0)
-                        status = node_output.get("status", "")
-                        if status == "budget_passed":
-                            st.success(f"✅ Budget check passed on attempt {attempt}/3")
-                        elif status == "budget_busted":
+                        status_val = node_output.get("status", "")
+                        if status_val == "budget_passed":
+                            st.success(f"✅ Budget validation passed on attempt {attempt}/3!")
+                        elif status_val == "budget_busted":
                             st.error(f"🚨 Budget busted after {attempt} attempts")
                         else:
-                            st.warning(
-                                f"🔄 Budget attempt {attempt}/3 failed — retrying..."
-                            )
-                            total_expected += 4  # Account for retry loop
+                            st.warning(f"🔄 Budget attempt {attempt}/3 failed — retrying...")
+                            total_expected += 4
 
             progress_bar.progress(1.0)
             status_text.markdown("**✅ Pipeline complete!**")
-
         except Exception as e:
-            st.error(f"❌ Pipeline error: {e}")
+            st.error(f"❌ Execution error: {e}")
             st.exception(e)
             st.stop()
 
-    # ── Get final state via invoke ────────────────────────────────────────
     try:
         result = app.invoke(initial_state)
     except Exception:
-        # Fallback: reconstruct from streamed outputs
         result = dict(initial_state)
         for _, output in completed_nodes:
             if isinstance(output, dict):
@@ -300,24 +318,56 @@ if plan_button:
     with result_container:
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
-        # Status badge
         if status == "approved":
             st.markdown(
                 '<span class="badge-approved">✅ TRIP PLAN APPROVED</span>',
                 unsafe_allow_html=True,
             )
 
-            # Result tabs
-            tab_itin, tab_food, tab_hotel, tab_budget, tab_judge = st.tabs([
+            # Tabs
+            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge = st.tabs([
                 "🗺️ Itinerary",
+                "📍 Location Map",
+                "📊 Tabular Itinerary",
                 "🍽️ Food & Retail",
                 "🏨 Accommodation",
-                "💰 Budget",
+                "💰 Budget Breakdown",
                 "⚖️ Quality Verdict",
             ])
 
             with tab_itin:
                 st.markdown(result.get("itinerary", "N/A"))
+
+            with tab_map:
+                st.markdown(f"### 📍 Google Maps Location Visualizer — {destination}")
+                encoded_dest = urllib.parse.quote(destination)
+
+                if gmaps_key:
+                    map_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+                else:
+                    map_url = f"https://www.google.com/maps?q={encoded_dest}&output=embed"
+
+                st.components.v1.iframe(map_url, height=500, scrolling=True)
+
+                st.markdown("#### 🔗 Quick Directions & Google Maps Links")
+                gmaps_direct_url = f"https://www.google.com/maps/search/?api=1&query={encoded_dest}"
+                st.markdown(f"[👉 Open {destination} on Google Maps]({gmaps_direct_url})")
+
+            with tab_table:
+                st.markdown("### 📊 Day-by-Day Tabular Itinerary")
+                itinerary_text = result.get("itinerary", "")
+                df_itin = parse_itinerary_to_dataframe(itinerary_text)
+                st.dataframe(df_itin, use_container_width=True)
+
+                # CSV Download Button
+                csv_data = df_itin.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="📥 Download Itinerary as CSV",
+                    data=csv_data,
+                    file_name=f"travel_itinerary_{sanitize_filename(destination).lower()}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
 
             with tab_food:
                 st.markdown(result.get("food_and_retail", "N/A"))
@@ -345,24 +395,20 @@ if plan_button:
         else:
             st.warning(f"⚠️ Unexpected status: {status}")
 
-        # ── Download Button ───────────────────────────────────────────────
+        # ── Full Text File Download ──────────────────────────────────────────
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
-        st.markdown("### 📥 Download Recommendations")
+        st.markdown("### 📥 Download Complete Recommendations Report")
 
-        persona_label = PERSONA_PROFILES.get(
-            persona, PERSONA_PROFILES["couple"]
-        )["label"]
-
+        persona_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"]
         file_content = build_recommendations_text(
-            result, destination, budget, dates, persona_label
+            result, destination, budget, dates, persona_label, no_budget=no_budget, currency="SGD"
         )
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_dest = sanitize_filename(destination).replace(" ", "_").lower()
         filename = f"travel_buddy_{safe_dest}_{timestamp}.txt"
 
         st.download_button(
-            label=f"💾 Download {filename}",
+            label=f"💾 Download Full Text Report ({filename})",
             data=file_content,
             file_name=filename,
             mime="text/plain",
@@ -377,50 +423,41 @@ else:
         st.markdown("""
         <div class="result-card">
             <h3>🤖 Multi-Agent System</h3>
-            <p>Three specialized AI agents collaborate to plan your perfect trip:
-            Itinerary, Food & Retail, and Hospitality.</p>
+            <p>Three specialized AI agents collaborate: Sightseeing, Food & Retail, and Hospitality.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
         <div class="result-card">
-            <h3>⚖️ Dual Evaluation</h3>
-            <p>Deterministic budget guardrail + cognitive Agent-as-Judge
-            ensure quality and cost compliance.</p>
+            <h3>💰 Default SGD & Flexible Budget</h3>
+            <p>Calculates costs in Singapore Dollars (SGD / S$) with optional unlimited budget mode.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
         <div class="result-card">
-            <h3>🎭 Persona-Aware</h3>
-            <p>Plans adapt to your travel style — Solo Traveler,
-            Couple's Getaway, or Family Adventure.</p>
+            <h3>📍 Google Maps & Tabular Export</h3>
+            <p>Visualizes locations on Google Maps and exports itineraries directly to CSV & Text.</p>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-
-    # Architecture diagram
     st.markdown("### 🏗️ System Architecture")
     st.markdown("""
     ```mermaid
     graph LR
-        A[START] --> B[🗺️ Itinerary Agent]
-        B --> C[🍽️ Food & Retail Agent]
-        C --> D[🏨 Hospitality Agent]
+        A[START] --> B[🗺️ Itinerary Agent (SGD)]
+        B --> C[🍽️ Food & Retail Agent (SGD)]
+        C --> D[🏨 Hospitality Agent (SGD)]
         D --> E{💰 Budget Guardrail}
-        E -->|Pass| F[⚖️ Agent-as-Judge]
+        E -->|Pass / No Budget| F[⚖️ Agent-as-Judge]
         E -->|Retry ≤3| B
         E -->|Busted| G[🚨 Budget Busted]
-        F --> H[✨ Final Output]
+        F --> H[✨ Final Output & Map/CSV Export]
         H --> I[END]
         G --> I
     ```
     """)
-
-    st.info(
-        "👈 **Enter your API keys and trip details in the sidebar, "
-        "then click 'Plan My Trip' to start!**"
-    )
+    st.info("👈 **Configure trip details in the sidebar and click 'Plan My Trip' to start!**")

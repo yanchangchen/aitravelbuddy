@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+import pandas as pd
 
 
 def ensure_str(content):
@@ -26,22 +27,28 @@ def ensure_str(content):
 
 
 def extract_cost(text: str, label: str) -> float:
-    """Extract a dollar amount following a specific label pattern.
+    """Extract a numeric amount following a specific label pattern.
 
-    Searches for patterns like SIGHTSEEING_TOTAL_USD: 450.
-    Falls back to scanning for the last dollar amount if label not found.
+    Searches for patterns like SIGHTSEEING_TOTAL_SGD: 450 or SIGHTSEEING_TOTAL_USD: 450.
+    Falls back to scanning for dollar/SGD amounts if label not found.
     """
     if isinstance(text, list):
         text = "\n".join(str(item) for item in text)
     if not isinstance(text, str):
         text = str(text)
-    pattern = label + r":\s*\$?([\d,]+\.?\d*)"
+    
+    # Try exact label match first (e.g. SIGHTSEEING_TOTAL_SGD: 450 or SIGHTSEEING_TOTAL_USD: 450)
+    label_stem = label.replace("_SGD", "").replace("_USD", "")
+    pattern = rf"(?:{label}|{label_stem}_SGD|{label_stem}_USD):\s*(?:S\$|\$)?\s*([\d,]+\.?\d*)"
     match = re.search(pattern, text, re.IGNORECASE)
     if match:
         return float(match.group(1).replace(",", ""))
-    dollar_amounts = re.findall(r"\$([\d,]+\.?\d*)", text)
-    if dollar_amounts:
-        return float(dollar_amounts[-1].replace(",", ""))
+
+    # Fallback: find all amounts with S$ or $ and take the last one
+    amounts = re.findall(r"(?:S\$|\$)\s*([\d,]+\.?\d*)", text)
+    if amounts:
+        return float(amounts[-1].replace(",", ""))
+
     return 0.0
 
 
@@ -49,12 +56,17 @@ def get_persona_context(state: dict, persona_profiles: dict) -> str:
     """Build persona-aware context string for injection into agent prompts."""
     persona_key = state["persona"].lower().strip()
     profile = persona_profiles.get(persona_key, persona_profiles["couple"])
+    currency = state.get("currency", "SGD")
+    no_budget = state.get("no_budget", False)
+    budget_desc = "Unlimited / Flexible" if no_budget else f"S$ {state['budget']:,.2f} {currency}"
+
     return (
         f"Traveler Persona: {profile['label']}\n"
         f"Pacing Tempo: {profile['tempo']}\n"
         f"Mobility Preference: {profile['mobility']}\n"
         f"Dining Style: {profile['dining_style']}\n"
         f"Accommodation Preference: {profile['accommodation']}\n"
+        f"Trip Budget Constraint: {budget_desc}\n"
         f"\nMANDATORY PERSONA RULES (you MUST follow all of these):\n"
         f"{profile['rules']}"
     )
@@ -77,17 +89,81 @@ def sanitize_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in name).strip()
 
 
+def parse_itinerary_to_dataframe(itinerary_text: str) -> pd.DataFrame:
+    """Parse day-by-day markdown itinerary into a structured tabular pandas DataFrame."""
+    rows = []
+    current_day = "Day 1"
+    current_theme = "Sightseeing"
+
+    lines = itinerary_text.split("\n")
+    for line in lines:
+        line_str = line.strip()
+        if not line_str:
+            continue
+
+        # Day header match: ## Day 1: Title
+        day_match = re.match(r"^##\s*(Day\s*\d+)[\s:]*(.*)", line_str, re.IGNORECASE)
+        if day_match:
+            current_day = day_match.group(1).strip()
+            current_theme = day_match.group(2).strip() or "Sightseeing"
+            continue
+
+        # Activity item match: - **Morning (10:00 AM):** Activity — Est. cost: S$XX
+        activity_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
+        if activity_match:
+            time_slot = activity_match.group(1).strip()
+            detail = activity_match.group(2).strip()
+
+            cost = 0.0
+            cost_match = re.search(r"Est\.\s*cost:\s*(?:S\$|\$)?\s*([\d,]+\.?\d*)", detail, re.IGNORECASE)
+            if cost_match:
+                cost = float(cost_match.group(1).replace(",", ""))
+                detail = re.sub(r"—\s*Est\.\s*cost:.*", "", detail, flags=re.IGNORECASE).strip()
+
+            rows.append({
+                "Day": current_day,
+                "Theme": current_theme,
+                "Time Slot": time_slot,
+                "Activity Details": detail,
+                "Est. Cost (SGD)": cost,
+            })
+        elif line_str.startswith("- Daily transport:") or line_str.startswith("* Daily transport:"):
+            cost_match = re.search(r"(?:S\$|\$)\s*([\d,]+\.?\d*)", line_str)
+            cost = float(cost_match.group(1).replace(",", "")) if cost_match else 0.0
+            rows.append({
+                "Day": current_day,
+                "Theme": current_theme,
+                "Time Slot": "Transport",
+                "Activity Details": "Daily transport (Local transit / taxi)",
+                "Est. Cost (SGD)": cost,
+            })
+
+    if not rows:
+        rows.append({
+            "Day": "Day 1",
+            "Theme": "Overview",
+            "Time Slot": "All Day",
+            "Activity Details": itinerary_text[:500],
+            "Est. Cost (SGD)": 0.0,
+        })
+
+    return pd.DataFrame(rows)
+
+
 def build_recommendations_text(result: dict, destination: str, budget: float,
-                                dates: str, persona_label: str) -> str:
+                                dates: str, persona_label: str, no_budget: bool = False,
+                                currency: str = "SGD") -> str:
     """Build the full text file content for travel recommendations."""
     status = result.get("status", "unknown")
+    budget_str = "Flexible / Unlimited" if no_budget else f"S$ {budget:,.2f} {currency}"
+
     lines = []
     lines.append("=" * 70)
     lines.append("  TRAVEL BUDDY -- TRAVEL RECOMMENDATIONS")
     lines.append("=" * 70)
     lines.append(f"  Generated:    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"  Destination:  {destination}")
-    lines.append(f"  Budget:       ${budget:,.2f} USD")
+    lines.append(f"  Budget:       {budget_str}")
     lines.append(f"  Dates:        {dates}")
     lines.append(f"  Persona:      {persona_label}")
     lines.append(f"  Status:       {status.upper()}")

@@ -9,7 +9,7 @@ class TravelBuddyState(TypedDict):
     """State flowing through the Travel Buddy agent graph.
 
     User Inputs (set once at invocation):
-        destination, budget, dates, persona
+        destination, budget, dates, persona, no_budget, currency
     Agent Outputs (populated by planning nodes):
         itinerary, food_and_retail, hotel_recommendations, budget_breakdown
     Loop Control & Evaluation:
@@ -17,7 +17,9 @@ class TravelBuddyState(TypedDict):
     """
 
     destination: str
-    budget: float
+    budget: float              # Total trip budget in specified currency (default SGD)
+    no_budget: bool            # True if user selected flexible/unlimited budget
+    currency: str              # Currency code, e.g. "SGD"
     dates: str
     persona: str
     itinerary: str

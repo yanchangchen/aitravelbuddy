@@ -6,6 +6,9 @@ from .utils import extract_cost, ensure_str
 
 _llm = None
 
+# Exchange rate reference: 1 SGD = 0.74 USD
+SGD_TO_USD_RATE = 0.74
+
 
 def init(llm):
     """Initialize the module with LLM instance."""
@@ -14,48 +17,71 @@ def init(llm):
 
 
 def budget_guardrail(state: dict) -> dict:
-    """Deterministic Python budget validation node."""
-    budget = state["budget"]
+    """Deterministic Python budget validation node.
+
+    Handles SGD pricing as primary currency and supports optional USD conversion reference.
+    Supports no_budget mode (flexible / unlimited budget).
+    """
+    budget_sgd = state.get("budget", 0.0)
+    no_budget = state.get("no_budget", False)
     attempts = state.get("budget_attempts", 0)
 
-    sightseeing_cost = extract_cost(state.get("itinerary", ""), "SIGHTSEEING_TOTAL_USD")
-    food_retail_cost = extract_cost(state.get("food_and_retail", ""), "FOOD_RETAIL_TOTAL_USD")
-    hotel_cost = extract_cost(state.get("hotel_recommendations", ""), "HOTEL_TOTAL_USD")
-    total_cost = sightseeing_cost + food_retail_cost + hotel_cost
+    sightseeing_sgd = extract_cost(state.get("itinerary", ""), "SIGHTSEEING_TOTAL_SGD")
+    food_retail_sgd = extract_cost(state.get("food_and_retail", ""), "FOOD_RETAIL_TOTAL_SGD")
+    hotel_sgd = extract_cost(state.get("hotel_recommendations", ""), "HOTEL_TOTAL_SGD")
 
-    lower_bound = 0.80 * budget
-    upper_bound = 0.90 * budget
+    total_sgd = sightseeing_sgd + food_retail_sgd + hotel_sgd
+    total_usd_ref = total_sgd * SGD_TO_USD_RATE
+
+    if no_budget or budget_sgd <= 0:
+        breakdown = (
+            f"Budget Breakdown (Attempt {attempts + 1}/3) — FLEXIBLE / UNLIMITED BUDGET\n"
+            f"{'-' * 55}\n"
+            f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"{'-' * 55}\n"
+            f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
+            f"  BUDGET MODE:               Unlimited / Flexible (Guardrail Bypassed)\n"
+        )
+        return {
+            "budget_breakdown": breakdown,
+            "budget_attempts": attempts + 1,
+            "status": "budget_passed",
+        }
+
+    # Bounded budget check in SGD
+    lower_bound_sgd = 0.80 * budget_sgd
+    upper_bound_sgd = 0.90 * budget_sgd
 
     breakdown = (
         f"Budget Breakdown (Attempt {attempts + 1}/3)\n"
-        f"{'-' * 45}\n"
-        f"  Sightseeing & Activities:  ${sightseeing_cost:>10,.2f}\n"
-        f"  Food & Retail:             ${food_retail_cost:>10,.2f}\n"
-        f"  Accommodation:             ${hotel_cost:>10,.2f}\n"
-        f"{'-' * 45}\n"
-        f"  TOTAL ESTIMATED COST:      ${total_cost:>10,.2f}\n"
-        f"  TARGET RANGE:              ${lower_bound:,.2f} \u2014 ${upper_bound:,.2f}\n"
-        f"  USER BUDGET:               ${budget:>10,.2f}\n"
+        f"{'-' * 55}\n"
+        f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+        f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+        f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+        f"{'-' * 55}\n"
+        f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
+        f"  TARGET RANGE (80-90%):     S${lower_bound_sgd:,.2f} — S${upper_bound_sgd:,.2f} SGD\n"
+        f"  USER BUDGET:               S${budget_sgd:>10,.2f} SGD\n"
     )
 
-    if lower_bound <= total_cost <= upper_bound:
+    if lower_bound_sgd <= total_sgd <= upper_bound_sgd:
         return {
             "budget_breakdown": breakdown,
             "budget_attempts": attempts + 1,
             "status": "budget_passed",
         }
     else:
-        if total_cost < lower_bound:
+        if total_sgd < lower_bound_sgd:
             critique = (
-                f"Attempt {attempts + 1}: Total ${total_cost:,.2f} is TOO LOW "
-                f"(below ${lower_bound:,.2f}). Agents are under-utilizing the "
-                f"budget. Upgrade accommodations, add premium activities, or "
-                f"include more dining experiences."
+                f"Attempt {attempts + 1}: Total S${total_sgd:,.2f} SGD is TOO LOW "
+                f"(below S${lower_bound_sgd:,.2f} SGD). Upgrade accommodations or add premium experiences."
             )
         else:
             critique = (
-                f"Attempt {attempts + 1}: Total ${total_cost:,.2f} EXCEEDS "
-                f"${upper_bound:,.2f}. Agents must reduce costs."
+                f"Attempt {attempts + 1}: Total S${total_sgd:,.2f} SGD EXCEEDS "
+                f"target limit of S${upper_bound_sgd:,.2f} SGD. Reduce costs."
             )
 
         new_attempts = attempts + 1
@@ -110,17 +136,19 @@ def budget_busted_fallback(state: dict) -> dict:
     """Terminal fallback when budget cannot be reconciled after 3 attempts."""
     history = state.get("critique_history", [])
     history_text = "\n".join(f"  - {c}" for c in history)
+    budget_sgd = state.get("budget", 0.0)
+
     notice = (
         f"BUDGET RECONCILIATION FAILED\n"
         f"{'=' * 50}\n"
         f"Destination: {state['destination']}\n"
-        f"Budget: ${state['budget']:,.2f}\n"
+        f"Budget: S${budget_sgd:,.2f} SGD\n"
         f"Dates: {state['dates']}\n"
         f"Persona: {state['persona']}\n\n"
         f"The system attempted 3 rounds of planning but could not\n"
         f"produce a plan within the 80-90% budget safety buffer.\n\n"
         f"Attempt History:\n{history_text}\n\n"
-        f"RECOMMENDATION: Increase budget, reduce days, or choose cheaper destination."
+        f"RECOMMENDATION: Increase budget, select 'No budget limit', reduce days, or choose a cheaper destination."
     )
     return {"status": "budget_busted", "budget_breakdown": notice}
 
