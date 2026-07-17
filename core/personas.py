@@ -51,4 +51,19 @@ PERSONA_PROFILES = {
             "8. Transportation should avoid crowded public transit during rush hours."
         ),
     },
+    "backpacker": {
+        "label": "\U0001f392 Budget Backpacker",
+        "tempo": "high",
+        "mobility": "maximum walkability & public transit \u2014 trains, buses, walking",
+        "dining_style": "street food stalls, night markets, local food courts, grocery finds",
+        "accommodation": "social hostels, guesthouses, shared dorms or budget private rooms",
+        "rules": (
+            "1. Focus on free or ultra-low-cost attractions (parks, public squares, viewpoints, free museum days).\n"
+            "2. Prioritize authentic street food and local markets over sit-down restaurants.\n"
+            "3. Use public transport or walking exclusively \u2014 avoid private taxis.\n"
+            "4. Include social hostel vibes or local community spots.\n"
+            "5. Keep daily spending extremely lean while maximizing cultural immersion.\n"
+            "6. Offer practical backpacker money-saving tips for each day."
+        ),
+    },
 }

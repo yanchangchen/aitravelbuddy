@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point with enhanced troubleshooting logging & valid Mermaid diagrams.
+Streamlit web application entry point with custom persona builder, chat assistant, default 5-day duration & infinite budget default.
 """
 
 import os
@@ -102,7 +102,7 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Default SGD (S$) • Troubleshooting Logs Enabled</p>',
+    'Infinite Budget Default • 5-Day Itineraries • Custom Personas & Q&A Assistant</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -152,6 +152,16 @@ with st.sidebar:
             placeholder="AIzaSy... (for Maps Embed API)",
         )
 
+    with st.expander("ℹ️ How to get a Google Maps API key?"):
+        st.markdown("""
+        1. Open **[Google Cloud Console](https://console.cloud.google.com/)**.
+        2. Create or select a project.
+        3. Go to **APIs & Services > Library** and search for **Maps Embed API**. Click **Enable**.
+        4. Go to **APIs & Services > Credentials** -> Click **+ Create Credentials > API key**.
+        5. Copy your key into the field above or set `GOOGLE_MAPS_API_KEY` in `.streamlit/secrets.toml`.
+        *(If no key is provided, Travel Buddy falls back to standard web embedded maps).*
+        """)
+
     st.markdown("---")
     st.markdown("## ✈️ Trip Details")
 
@@ -161,7 +171,8 @@ with st.sidebar:
         placeholder="e.g., Tokyo, Japan or Paris, France",
     )
 
-    no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=False)
+    # Infinite budget as default
+    no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
 
     if not no_budget:
         budget = st.number_input(
@@ -174,25 +185,56 @@ with st.sidebar:
         )
     else:
         budget = 0.0
-        st.caption("ℹ️ Budget guardrail will be bypassed. Agents will focus on best experiences.")
+        st.caption("ℹ️ Unlimited budget mode active. Agents will focus on best experiences.")
 
+    # Default 5 days: March 10-14, 2025
     dates = st.text_input(
-        "Travel Dates",
-        value="March 10-15, 2025",
-        placeholder="e.g., March 10-15, 2025",
+        "Travel Dates (5 Days)",
+        value="March 10-14, 2025",
+        placeholder="e.g., March 10-14, 2025",
     )
 
+    st.markdown("### 🎭 Traveler Persona")
     persona_options = {
         "🧑 Solo Traveler": "single",
         "💑 Couple's Getaway": "couple",
         "👨‍👩‍👧‍👦 Family Adventure": "family",
+        "🎒 Budget Backpacker": "backpacker",
+        "🎨 Custom Persona...": "custom",
     }
     persona_display = st.radio(
-        "Traveler Persona",
+        "Select Persona",
         options=list(persona_options.keys()),
         index=1,
     )
     persona = persona_options[persona_display]
+
+    custom_profile = None
+    if persona == "custom":
+        with st.expander("🛠️ Define Custom Persona Rules", expanded=True):
+            custom_title = st.text_input("Persona Name", value="🧘 Wellness & Slow Travel Retreat")
+            custom_tempo = st.selectbox("Pacing Tempo", options=["low", "medium", "high"], index=0)
+            custom_mobility = st.text_input("Mobility Preference", value="relaxed walking, private shuttles")
+            custom_dining = st.text_input("Dining Style", value="organic farm-to-table, plant-based cafes, tea houses")
+            custom_lodging = st.text_input("Accommodation Preference", value="wellness resorts, quiet ryokans, boutique retreats")
+            custom_rules = st.text_area(
+                "Mandatory Persona Rules (1 per line)",
+                value=(
+                    "1. Morning yoga or mindfulness before 9:00 AM.\n"
+                    "2. Maximum 2 gentle activities per day.\n"
+                    "3. Prioritize natural hot springs, gardens, and quiet temples.\n"
+                    "4. Include healthy, organic dining options."
+                ),
+                height=120,
+            )
+            custom_profile = {
+                "label": f"🎨 {custom_title}",
+                "tempo": custom_tempo,
+                "mobility": custom_mobility,
+                "dining_style": custom_dining,
+                "accommodation": custom_lodging,
+                "rules": custom_rules,
+            }
 
     st.markdown("---")
     plan_button = st.button(
@@ -204,10 +246,10 @@ with st.sidebar:
 
 # ── Node display labels ──────────────────────────────────────────────────────
 NODE_LABELS = {
-    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning sightseeing & activities in SGD..."),
-    "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping in SGD..."),
-    "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation in SGD..."),
-    "budget_guardrail": ("💰", "Budget Guardrail", "Validating SGD costs & safety buffer..."),
+    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning 5-day sightseeing & activities..."),
+    "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping..."),
+    "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation..."),
+    "budget_guardrail": ("💰", "Budget Guardrail", "Evaluating budget constraints..."),
     "agent_as_judge": ("⚖️", "Agent-as-Judge", "Evaluating persona compliance..."),
     "final_output": ("✨", "Final Output", "Compiling approved plan..."),
     "budget_busted_fallback": ("🚨", "Budget Busted", "Budget could not be reconciled."),
@@ -217,7 +259,7 @@ NODE_LABELS = {
 # ── Main Execution ────────────────────────────────────────────────────────────
 if plan_button:
     clear_session_logs()
-    logger.info(f"Session started for destination='{destination}', persona='{persona}', no_budget={no_budget}")
+    logger.info(f"Session started for destination='{destination}', persona='{persona}', no_budget={no_budget}, dates='{dates}'")
 
     if not gemini_key or not tavily_key:
         logger.error("Missing Gemini or Tavily API key.")
@@ -259,7 +301,7 @@ if plan_button:
             st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
-    st.success("✅ Agents initialized. Starting execution...")
+    st.success("✅ Agents initialized. Starting 5-day planning execution...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
     initial_state = {
@@ -269,6 +311,7 @@ if plan_button:
         "currency": "SGD",
         "dates": dates,
         "persona": persona,
+        "custom_persona_profile": custom_profile,
         "itinerary": "",
         "food_and_retail": "",
         "hotel_recommendations": "",
@@ -308,7 +351,7 @@ if plan_button:
                         attempt = node_output.get("budget_attempts", 0)
                         status_val = node_output.get("status", "")
                         if status_val == "budget_passed":
-                            st.success(f"✅ Budget validation passed on attempt {attempt}/3!")
+                            st.success(f"✅ Budget validation passed!")
                         elif status_val == "budget_busted":
                             st.error(f"🚨 Budget busted after {attempt} attempts")
                         else:
@@ -334,6 +377,7 @@ if plan_button:
                 result.update(output)
 
     status = result.get("status", "unknown")
+    st.session_state.current_result = result
 
     # ── Display Results ───────────────────────────────────────────────────
     with result_container:
@@ -345,8 +389,7 @@ if plan_button:
                 unsafe_allow_html=True,
             )
 
-            # Tabs
-            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_logs = st.tabs([
+            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_chat, tab_logs = st.tabs([
                 "🗺️ Itinerary",
                 "📍 Location Map",
                 "📊 Tabular Itinerary",
@@ -354,6 +397,7 @@ if plan_button:
                 "🏨 Accommodation",
                 "💰 Budget Breakdown",
                 "⚖️ Quality Verdict",
+                "💬 Travel Q&A Chat",
                 "📜 Debug Logs",
             ])
 
@@ -370,10 +414,7 @@ if plan_button:
                     map_url = f"https://www.google.com/maps?q={encoded_dest}&output=embed"
 
                 st.components.v1.iframe(map_url, height=500, scrolling=True)
-
-                st.markdown("#### 🔗 Quick Directions & Google Maps Links")
-                gmaps_direct_url = f"https://www.google.com/maps/search/?api=1&query={encoded_dest}"
-                st.markdown(f"[👉 Open {destination} on Google Maps]({gmaps_direct_url})")
+                st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
 
             with tab_table:
                 st.markdown("### 📊 Day-by-Day Tabular Itinerary")
@@ -401,6 +442,38 @@ if plan_button:
 
             with tab_judge:
                 st.markdown(result.get("judge_verdict", "N/A"))
+
+            with tab_chat:
+                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
+                st.caption(f"Ask follow-up travel questions about {destination}, packing, local transit, or customs!")
+
+                if "chat_messages" not in st.session_state:
+                    st.session_state.chat_messages = []
+
+                for msg in st.session_state.chat_messages:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+
+                user_query = st.chat_input("Ask a travel question...")
+                if user_query:
+                    st.session_state.chat_messages.append({"role": "user", "content": user_query})
+                    with st.chat_message("user"):
+                        st.markdown(user_query)
+
+                    with st.chat_message("assistant"):
+                        with st.spinner("Searching & thinking..."):
+                            try:
+                                from langchain_core.messages import HumanMessage, SystemMessage
+                                chat_context = f"Destination: {destination}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
+                                search_res = search_tool.invoke(f"{destination} {user_query}")
+                                search_info = "\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
+                                prompt = f"Context:\n{chat_context}\nWeb Info:\n{search_info}\nUser Question: {user_query}\nAnswer helpfully as a travel expert."
+                                answer_resp = llm.invoke([HumanMessage(content=prompt)])
+                                answer_text = answer_resp.content if isinstance(answer_resp.content, str) else str(answer_resp.content)
+                                st.markdown(answer_text)
+                                st.session_state.chat_messages.append({"role": "assistant", "content": answer_text})
+                            except Exception as e:
+                                st.error(f"Failed to generate answer: {e}")
 
             with tab_logs:
                 st.markdown("### 📜 Session Execution & Troubleshooting Logs")
@@ -435,7 +508,11 @@ if plan_button:
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
         st.markdown("### 📥 Download Complete Recommendations Report")
 
-        persona_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"]
+        if persona == "custom" and custom_profile:
+            persona_label = custom_profile.get("label", "Custom Persona")
+        else:
+            persona_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"]
+
         file_content = build_recommendations_text(
             result, destination, budget, dates, persona_label, no_budget=no_budget, currency="SGD"
         )
@@ -458,16 +535,16 @@ else:
     with col1:
         st.markdown("""
         <div class="result-card">
-            <h3>🤖 Multi-Agent System</h3>
-            <p>Three specialized AI agents collaborate: Sightseeing, Food & Retail, and Hospitality.</p>
+            <h3>🤖 Multi-Agent & Chat Q&A</h3>
+            <p>Collaborative planning agents + interactive Q&A assistant for follow-up travel questions.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
         <div class="result-card">
-            <h3>💰 Default SGD & Flexible Budget</h3>
-            <p>Calculates costs in Singapore Dollars (SGD / S$) with optional unlimited budget mode.</p>
+            <h3>💰 Infinite Budget & 5-Day Default</h3>
+            <p>Unlimited budget by default and 5-day itineraries with custom persona builder.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -475,7 +552,7 @@ else:
         st.markdown("""
         <div class="result-card">
             <h3>📍 Maps, CSV & Live Debug Logs</h3>
-            <p>Google Maps location grounding, CSV data exports, and live system troubleshooting logs.</p>
+            <p>Google Maps visualizer, CSV data export, and real-time system troubleshooting logs.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -491,7 +568,7 @@ else:
         E -->|"Pass / Flexible"| F["Agent-as-Judge"]
         E -->|"Retry <= 3"| B
         E -->|"Busted"| G["Budget Busted"]
-        F --> H["Final Output & Exports"]
+        F --> H["Final Output & Exports / Q&A Chat"]
         H --> I["END"]
         G --> I
     ```

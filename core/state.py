@@ -1,15 +1,15 @@
 """Centralized state schema for the Travel Buddy agent graph."""
 
 import operator
-from typing import Annotated
+from typing import Annotated, Optional
 from typing_extensions import TypedDict
 
 
-class TravelBuddyState(TypedDict):
+class TravelBuddyState(TypedDict, total=False):
     """State flowing through the Travel Buddy agent graph.
 
     User Inputs (set once at invocation):
-        destination, budget, dates, persona, no_budget, currency
+        destination, budget, dates, persona, no_budget, currency, custom_persona_profile
     Agent Outputs (populated by planning nodes):
         itinerary, food_and_retail, hotel_recommendations, budget_breakdown
     Loop Control & Evaluation:
@@ -22,6 +22,7 @@ class TravelBuddyState(TypedDict):
     currency: str              # Currency code, e.g. "SGD"
     dates: str
     persona: str
+    custom_persona_profile: Optional[dict]
     itinerary: str
     food_and_retail: str
     hotel_recommendations: str

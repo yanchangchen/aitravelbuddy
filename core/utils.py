@@ -36,15 +36,13 @@ def extract_cost(text: str, label: str) -> float:
         text = "\n".join(str(item) for item in text)
     if not isinstance(text, str):
         text = str(text)
-    
-    # Try exact label match first (e.g. SIGHTSEEING_TOTAL_SGD: 450 or SIGHTSEEING_TOTAL_USD: 450)
+
     label_stem = label.replace("_SGD", "").replace("_USD", "")
     pattern = rf"(?:{label}|{label_stem}_SGD|{label_stem}_USD):\s*(?:S\$|\$)?\s*([\d,]+\.?\d*)"
     match = re.search(pattern, text, re.IGNORECASE)
     if match:
         return float(match.group(1).replace(",", ""))
 
-    # Fallback: find all amounts with S$ or $ and take the last one
     amounts = re.findall(r"(?:S\$|\$)\s*([\d,]+\.?\d*)", text)
     if amounts:
         return float(amounts[-1].replace(",", ""))
@@ -55,20 +53,24 @@ def extract_cost(text: str, label: str) -> float:
 def get_persona_context(state: dict, persona_profiles: dict) -> str:
     """Build persona-aware context string for injection into agent prompts."""
     persona_key = state["persona"].lower().strip()
-    profile = persona_profiles.get(persona_key, persona_profiles["couple"])
+    if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
+        profile = state["custom_persona_profile"]
+    else:
+        profile = persona_profiles.get(persona_key, persona_profiles["couple"])
+
     currency = state.get("currency", "SGD")
     no_budget = state.get("no_budget", False)
     budget_desc = "Unlimited / Flexible" if no_budget else f"S$ {state['budget']:,.2f} {currency}"
 
     return (
-        f"Traveler Persona: {profile['label']}\n"
-        f"Pacing Tempo: {profile['tempo']}\n"
-        f"Mobility Preference: {profile['mobility']}\n"
-        f"Dining Style: {profile['dining_style']}\n"
-        f"Accommodation Preference: {profile['accommodation']}\n"
+        f"Traveler Persona: {profile.get('label', 'Custom Persona')}\n"
+        f"Pacing Tempo: {profile.get('tempo', 'medium')}\n"
+        f"Mobility Preference: {profile.get('mobility', 'balanced')}\n"
+        f"Dining Style: {profile.get('dining_style', 'varied')}\n"
+        f"Accommodation Preference: {profile.get('accommodation', 'comfortable')}\n"
         f"Trip Budget Constraint: {budget_desc}\n"
         f"\nMANDATORY PERSONA RULES (you MUST follow all of these):\n"
-        f"{profile['rules']}"
+        f"{profile.get('rules', 'Follow traveler preferences strictly.')}"
     )
 
 
@@ -101,14 +103,12 @@ def parse_itinerary_to_dataframe(itinerary_text: str) -> pd.DataFrame:
         if not line_str:
             continue
 
-        # Day header match: ## Day 1: Title
         day_match = re.match(r"^##\s*(Day\s*\d+)[\s:]*(.*)", line_str, re.IGNORECASE)
         if day_match:
             current_day = day_match.group(1).strip()
             current_theme = day_match.group(2).strip() or "Sightseeing"
             continue
 
-        # Activity item match: - **Morning (10:00 AM):** Activity — Est. cost: S$XX
         activity_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
         if activity_match:
             time_slot = activity_match.group(1).strip()
