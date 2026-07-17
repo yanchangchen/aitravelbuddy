@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point.
+Streamlit web application entry point with enhanced troubleshooting logging & valid Mermaid diagrams.
 """
 
 import os
@@ -8,6 +8,10 @@ import urllib.parse
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+
+from core.logger import get_logger, get_session_logs, clear_session_logs
+
+logger = get_logger("app")
 
 # ── Page Configuration ────────────────────────────────────────────────────────
 st.set_page_config(
@@ -79,12 +83,17 @@ st.markdown("""
         margin: 20px 0;
     }
 
-    .map-frame {
-        border-radius: 12px;
+    .log-box {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.85rem;
+        background-color: #0E1117;
+        color: #00FF66;
+        padding: 15px;
+        border-radius: 8px;
         border: 1px solid #2A3040;
-        overflow: hidden;
-        width: 100%;
-        height: 450px;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,7 +102,7 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Default SGD (S$) • Google Maps Grounding</p>',
+    'Default SGD (S$) • Troubleshooting Logs Enabled</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -207,10 +216,15 @@ NODE_LABELS = {
 
 # ── Main Execution ────────────────────────────────────────────────────────────
 if plan_button:
+    clear_session_logs()
+    logger.info(f"Session started for destination='{destination}', persona='{persona}', no_budget={no_budget}")
+
     if not gemini_key or not tavily_key:
+        logger.error("Missing Gemini or Tavily API key.")
         st.error("⚠️ Please provide Gemini and Tavily API keys in sidebar or Streamlit secrets.")
         st.stop()
     if not destination.strip():
+        logger.error("Empty destination provided.")
         st.error("⚠️ Please enter a destination.")
         st.stop()
 
@@ -218,6 +232,7 @@ if plan_button:
     os.environ["TAVILY_API_KEY"] = tavily_key
     if gmaps_key:
         os.environ["GOOGLE_MAPS_API_KEY"] = gmaps_key
+        logger.info("Google Maps API Key configured.")
 
     with st.spinner("Initializing AI agents & LangGraph pipeline..."):
         try:
@@ -238,7 +253,9 @@ if plan_button:
             )
             search_tool = TavilySearchResults(max_results=3)
             app = build_graph(llm, search_tool)
+            logger.info("LangGraph application constructed successfully.")
         except Exception as e:
+            logger.exception(f"Failed to initialize graph: {e}")
             st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
@@ -278,6 +295,7 @@ if plan_button:
             for step_output in app.stream(initial_state):
                 for node_name, node_output in step_output.items():
                     node_count += 1
+                    logger.info(f"Graph step completed node='{node_name}'")
                     icon, label, desc = NODE_LABELS.get(
                         node_name, ("⚙️", node_name, "Processing...")
                     )
@@ -300,13 +318,16 @@ if plan_button:
             progress_bar.progress(1.0)
             status_text.markdown("**✅ Pipeline complete!**")
         except Exception as e:
+            logger.exception(f"Pipeline execution error: {e}")
             st.error(f"❌ Execution error: {e}")
             st.exception(e)
             st.stop()
 
     try:
         result = app.invoke(initial_state)
-    except Exception:
+        logger.info(f"Final state invoked. Result status='{result.get('status')}'")
+    except Exception as e:
+        logger.warning(f"Re-invocation failed: {e}. Reconstructing state from streamed nodes.")
         result = dict(initial_state)
         for _, output in completed_nodes:
             if isinstance(output, dict):
@@ -325,7 +346,7 @@ if plan_button:
             )
 
             # Tabs
-            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge = st.tabs([
+            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_logs = st.tabs([
                 "🗺️ Itinerary",
                 "📍 Location Map",
                 "📊 Tabular Itinerary",
@@ -333,6 +354,7 @@ if plan_button:
                 "🏨 Accommodation",
                 "💰 Budget Breakdown",
                 "⚖️ Quality Verdict",
+                "📜 Debug Logs",
             ])
 
             with tab_itin:
@@ -359,7 +381,6 @@ if plan_button:
                 df_itin = parse_itinerary_to_dataframe(itinerary_text)
                 st.dataframe(df_itin, use_container_width=True)
 
-                # CSV Download Button
                 csv_data = df_itin.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     label="📥 Download Itinerary as CSV",
@@ -381,6 +402,18 @@ if plan_button:
             with tab_judge:
                 st.markdown(result.get("judge_verdict", "N/A"))
 
+            with tab_logs:
+                st.markdown("### 📜 Session Execution & Troubleshooting Logs")
+                logs_content = get_session_logs()
+                st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+                st.download_button(
+                    label="📥 Download System Debug Log (.log)",
+                    data=logs_content.encode("utf-8"),
+                    file_name="travel_buddy_debug.log",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+
         elif status == "budget_busted":
             st.markdown(
                 '<span class="badge-busted">🚨 BUDGET COULD NOT BE RECONCILED</span>',
@@ -392,6 +425,9 @@ if plan_button:
             if result.get("itinerary"):
                 with st.expander("📋 Last Attempted Itinerary (not approved)"):
                     st.markdown(result.get("itinerary", ""))
+
+            with st.expander("📜 View Debug Logs"):
+                st.markdown(f'<div class="log-box">{get_session_logs()}</div>', unsafe_allow_html=True)
         else:
             st.warning(f"⚠️ Unexpected status: {status}")
 
@@ -438,8 +474,8 @@ else:
     with col3:
         st.markdown("""
         <div class="result-card">
-            <h3>📍 Google Maps & Tabular Export</h3>
-            <p>Visualizes locations on Google Maps and exports itineraries directly to CSV & Text.</p>
+            <h3>📍 Maps, CSV & Live Debug Logs</h3>
+            <p>Google Maps location grounding, CSV data exports, and live system troubleshooting logs.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -447,16 +483,16 @@ else:
     st.markdown("### 🏗️ System Architecture")
     st.markdown("""
     ```mermaid
-    graph LR
-        A[START] --> B[🗺️ Itinerary Agent (SGD)]
-        B --> C[🍽️ Food & Retail Agent (SGD)]
-        C --> D[🏨 Hospitality Agent (SGD)]
-        D --> E{💰 Budget Guardrail}
-        E -->|Pass / No Budget| F[⚖️ Agent-as-Judge]
-        E -->|Retry ≤3| B
-        E -->|Busted| G[🚨 Budget Busted]
-        F --> H[✨ Final Output & Map/CSV Export]
-        H --> I[END]
+    graph TD
+        A["START"] --> B["Itinerary Agent (SGD)"]
+        B --> C["Food & Retail Agent (SGD)"]
+        C --> D["Hospitality Agent (SGD)"]
+        D --> E{"Budget Guardrail"}
+        E -->|"Pass / Flexible"| F["Agent-as-Judge"]
+        E -->|"Retry <= 3"| B
+        E -->|"Busted"| G["Budget Busted"]
+        F --> H["Final Output & Exports"]
+        H --> I["END"]
         G --> I
     ```
     """)

@@ -1,8 +1,11 @@
-"""Planning agent nodes for the Travel Buddy graph."""
+"""Planning agent nodes for the Travel Buddy graph with troubleshooting logging."""
 
 from langchain_core.messages import HumanMessage
 from .personas import PERSONA_PROFILES
 from .utils import ensure_str, get_persona_context, get_critique_context
+from .logger import get_logger
+
+logger = get_logger("agents")
 
 # Module-level references (set by init)
 _llm = None
@@ -14,23 +17,29 @@ def init(llm, search_tool):
     global _llm, _search_tool
     _llm = llm
     _search_tool = search_tool
+    logger.info("Agents module initialized with LLM and Tavily search tool.")
 
 
 def _search(query: str) -> str:
     """Run a Tavily search and return formatted context string."""
+    logger.info(f"Executing web search query: '{query}'")
     try:
         results = _search_tool.invoke(query)
         if isinstance(results, list):
+            logger.info(f"Web search returned {len(results)} result snippets.")
             return "\n".join(
                 f"- {r.get('content', r.get('snippet', ''))}" for r in results
             )
+        logger.info("Web search returned non-list result.")
         return str(results)
     except Exception as e:
+        logger.warning(f"Web search failed: {e}. Falling back to LLM training knowledge.")
         return f"(Search unavailable: {e}. Use your training knowledge.)"
 
 
 def itinerary_agent(state: dict) -> dict:
     """Generate a day-by-day sightseeing itinerary with cost estimates in SGD."""
+    logger.info(f"[Itinerary Agent] Starting planning for destination='{state['destination']}', dates='{state['dates']}', persona='{state['persona']}'")
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
     critique_ctx = get_critique_context(state)
     currency = state.get("currency", "SGD")
@@ -65,12 +74,17 @@ def itinerary_agent(state: dict) -> dict:
         f"- Ensure geographic clustering (nearby activities grouped together)"
     )
 
+    logger.debug(f"[Itinerary Agent] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
-    return {"itinerary": ensure_str(response.content), "status": "planning"}
+    result_text = ensure_str(response.content)
+    logger.info(f"[Itinerary Agent] Generated itinerary ({len(result_text)} chars).")
+
+    return {"itinerary": result_text, "status": "planning"}
 
 
 def food_retail_agent(state: dict) -> dict:
     """Curate dining and retail recommendations in SGD aligned to daily zones."""
+    logger.info(f"[Food & Retail Agent] Curating dining for destination='{state['destination']}'")
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
     critique_ctx = get_critique_context(state)
     persona_key = state["persona"].lower().strip()
@@ -107,12 +121,17 @@ def food_retail_agent(state: dict) -> dict:
         f"- Prices must be realistic in Singapore Dollars (SGD / S$)"
     )
 
+    logger.debug(f"[Food & Retail Agent] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
-    return {"food_and_retail": ensure_str(response.content)}
+    result_text = ensure_str(response.content)
+    logger.info(f"[Food & Retail Agent] Generated dining plan ({len(result_text)} chars).")
+
+    return {"food_and_retail": result_text}
 
 
 def hospitality_agent(state: dict) -> dict:
     """Source hotel/accommodation options in SGD matching persona and budget."""
+    logger.info(f"[Hospitality Agent] Sourcing lodging for destination='{state['destination']}'")
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
     critique_ctx = get_critique_context(state)
     persona_key = state["persona"].lower().strip()
@@ -156,5 +175,9 @@ def hospitality_agent(state: dict) -> dict:
         f"- The recommended option should optimize for persona fit AND budget"
     )
 
+    logger.debug(f"[Hospitality Agent] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
-    return {"hotel_recommendations": ensure_str(response.content)}
+    result_text = ensure_str(response.content)
+    logger.info(f"[Hospitality Agent] Generated hotel recommendations ({len(result_text)} chars).")
+
+    return {"hotel_recommendations": result_text}

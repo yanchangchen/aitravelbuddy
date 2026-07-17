@@ -1,8 +1,11 @@
-"""LangGraph StateGraph compilation for Travel Buddy."""
+"""LangGraph StateGraph compilation for Travel Buddy with troubleshooting logging."""
 
 from langgraph.graph import StateGraph, END, START
 from .state import TravelBuddyState
 from . import agents, evaluation
+from .logger import get_logger
+
+logger = get_logger("graph")
 
 
 def build_graph(llm, search_tool):
@@ -15,11 +18,10 @@ def build_graph(llm, search_tool):
     Returns:
         Compiled LangGraph application ready for .stream() or .invoke()
     """
-    # Initialize modules with dependencies
+    logger.info("Initializing graph modules and registering StateGraph nodes...")
     agents.init(llm, search_tool)
     evaluation.init(llm)
 
-    # Build graph
     workflow = StateGraph(TravelBuddyState)
     workflow.add_node("itinerary_agent", agents.itinerary_agent)
     workflow.add_node("food_retail_agent", agents.food_retail_agent)
@@ -29,20 +31,22 @@ def build_graph(llm, search_tool):
     workflow.add_node("budget_busted_fallback", evaluation.budget_busted_fallback)
     workflow.add_node("final_output", evaluation.final_output)
 
-    # Sequential pipeline
     workflow.add_edge(START, "itinerary_agent")
     workflow.add_edge("itinerary_agent", "food_retail_agent")
     workflow.add_edge("food_retail_agent", "hospitality_agent")
     workflow.add_edge("hospitality_agent", "budget_guardrail")
 
-    # Conditional routing
     def route_after_budget_check(state):
         status = state.get("status", "planning")
+        logger.info(f"[Graph Router] Routing decision based on status='{status}'")
         if status == "budget_passed":
+            logger.info("   -> Routing to 'agent_as_judge'")
             return "agent_as_judge"
         elif status == "budget_busted":
+            logger.info("   -> Routing to 'budget_busted_fallback'")
             return "budget_busted_fallback"
         else:
+            logger.info("   -> Routing back to 'itinerary_agent' (Retry loop)")
             return "itinerary_agent"
 
     workflow.add_conditional_edges(
@@ -59,4 +63,6 @@ def build_graph(llm, search_tool):
     workflow.add_edge("final_output", END)
     workflow.add_edge("budget_busted_fallback", END)
 
-    return workflow.compile()
+    compiled_app = workflow.compile()
+    logger.info("StateGraph compiled successfully with 7 nodes.")
+    return compiled_app

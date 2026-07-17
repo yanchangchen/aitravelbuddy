@@ -1,8 +1,11 @@
-"""Dual-layer evaluation engine for Travel Buddy."""
+"""Dual-layer evaluation engine for Travel Buddy with troubleshooting logging."""
 
 from langchain_core.messages import HumanMessage
 from .personas import PERSONA_PROFILES
 from .utils import extract_cost, ensure_str
+from .logger import get_logger
+
+logger = get_logger("evaluation")
 
 _llm = None
 
@@ -14,6 +17,7 @@ def init(llm):
     """Initialize the module with LLM instance."""
     global _llm
     _llm = llm
+    logger.info("Evaluation module initialized with LLM instance.")
 
 
 def budget_guardrail(state: dict) -> dict:
@@ -26,6 +30,8 @@ def budget_guardrail(state: dict) -> dict:
     no_budget = state.get("no_budget", False)
     attempts = state.get("budget_attempts", 0)
 
+    logger.info(f"[Budget Guardrail] Evaluation attempt {attempts + 1}/3. no_budget={no_budget}, budget_sgd={budget_sgd:,.2f}")
+
     sightseeing_sgd = extract_cost(state.get("itinerary", ""), "SIGHTSEEING_TOTAL_SGD")
     food_retail_sgd = extract_cost(state.get("food_and_retail", ""), "FOOD_RETAIL_TOTAL_SGD")
     hotel_sgd = extract_cost(state.get("hotel_recommendations", ""), "HOTEL_TOTAL_SGD")
@@ -33,7 +39,14 @@ def budget_guardrail(state: dict) -> dict:
     total_sgd = sightseeing_sgd + food_retail_sgd + hotel_sgd
     total_usd_ref = total_sgd * SGD_TO_USD_RATE
 
+    logger.info(
+        f"[Budget Guardrail] Extracted costs: Sightseeing=S${sightseeing_sgd:,.2f}, "
+        f"Food/Retail=S${food_retail_sgd:,.2f}, Hotel=S${hotel_sgd:,.2f} -> "
+        f"TOTAL=S${total_sgd:,.2f} SGD (~${total_usd_ref:,.2f} USD)"
+    )
+
     if no_budget or budget_sgd <= 0:
+        logger.info("[Budget Guardrail] Flexible / Unlimited budget mode active — Guardrail PASSED directly.")
         breakdown = (
             f"Budget Breakdown (Attempt {attempts + 1}/3) — FLEXIBLE / UNLIMITED BUDGET\n"
             f"{'-' * 55}\n"
@@ -54,6 +67,8 @@ def budget_guardrail(state: dict) -> dict:
     lower_bound_sgd = 0.80 * budget_sgd
     upper_bound_sgd = 0.90 * budget_sgd
 
+    logger.info(f"[Budget Guardrail] Bound check: Target range=S${lower_bound_sgd:,.2f} - S${upper_bound_sgd:,.2f} SGD.")
+
     breakdown = (
         f"Budget Breakdown (Attempt {attempts + 1}/3)\n"
         f"{'-' * 55}\n"
@@ -67,6 +82,7 @@ def budget_guardrail(state: dict) -> dict:
     )
 
     if lower_bound_sgd <= total_sgd <= upper_bound_sgd:
+        logger.info(f"[Budget Guardrail] PASSED! Total S${total_sgd:,.2f} SGD within 80-90% safety buffer.")
         return {
             "budget_breakdown": breakdown,
             "budget_attempts": attempts + 1,
@@ -86,6 +102,7 @@ def budget_guardrail(state: dict) -> dict:
 
         new_attempts = attempts + 1
         if new_attempts >= 3:
+            logger.error(f"[Budget Guardrail] STRIKE THREE! {critique} -> Routing to budget_busted_fallback.")
             return {
                 "budget_breakdown": breakdown,
                 "budget_attempts": new_attempts,
@@ -93,6 +110,7 @@ def budget_guardrail(state: dict) -> dict:
                 "status": "budget_busted",
             }
         else:
+            logger.warning(f"[Budget Guardrail] FAILED attempt {new_attempts}/3. {critique} -> Routing back to planning.")
             return {
                 "budget_breakdown": breakdown,
                 "budget_attempts": new_attempts,
@@ -103,6 +121,7 @@ def budget_guardrail(state: dict) -> dict:
 
 def agent_as_judge(state: dict) -> dict:
     """Cognitive quality evaluation using a separate LLM call."""
+    logger.info(f"[Agent-as-Judge] Starting persona compliance check for persona='{state['persona']}'")
     persona_key = state["persona"].lower().strip()
     profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["couple"])
 
@@ -127,13 +146,16 @@ def agent_as_judge(state: dict) -> dict:
         f"[2-3 sentences summarizing the quality of the plan]"
     )
 
+    logger.debug("[Agent-as-Judge] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
     verdict_text = ensure_str(response.content)
+    logger.info(f"[Agent-as-Judge] Evaluation complete ({len(verdict_text)} chars).")
     return {"judge_verdict": verdict_text, "status": "approved"}
 
 
 def budget_busted_fallback(state: dict) -> dict:
     """Terminal fallback when budget cannot be reconciled after 3 attempts."""
+    logger.error(f"[Budget Busted Fallback] Handling terminal failure for destination='{state['destination']}'")
     history = state.get("critique_history", [])
     history_text = "\n".join(f"  - {c}" for c in history)
     budget_sgd = state.get("budget", 0.0)
@@ -155,4 +177,5 @@ def budget_busted_fallback(state: dict) -> dict:
 
 def final_output(state: dict) -> dict:
     """Terminal success node."""
+    logger.info("[Final Output] Compiling approved plan.")
     return {"status": "approved"}
