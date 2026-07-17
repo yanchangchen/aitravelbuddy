@@ -29,7 +29,7 @@ def ensure_str(content):
 def extract_cost(text: str, label: str) -> float:
     """Extract a numeric amount following a specific label pattern.
 
-    Searches for patterns like SIGHTSEEING_TOTAL_SGD: 450 or SIGHTSEEING_TOTAL_USD: 450.
+    Searches for patterns like SIGHTSEEING_TOTAL_SGD: 450 or AIRFARE_TOTAL_SGD: 800.
     Falls back to scanning for dollar/SGD amounts if label not found.
     """
     if isinstance(text, list):
@@ -61,11 +61,15 @@ def get_persona_context(state: dict, persona_profiles: dict) -> str:
     currency = state.get("currency", "SGD")
     no_budget = state.get("no_budget", False)
     budget_desc = "Unlimited / Flexible" if no_budget else f"S$ {state['budget']:,.2f} {currency}"
+    origin = state.get("origin", "Singapore")
+    self_drive = "YES (Car Rental)" if state.get("self_drive", False) else "NO (Public Transport/Taxi)"
 
     return (
         f"Traveler Persona: {profile.get('label', 'Custom Persona')}\n"
+        f"Origin City: {origin}\n"
         f"Pacing Tempo: {profile.get('tempo', 'medium')}\n"
         f"Mobility Preference: {profile.get('mobility', 'balanced')}\n"
+        f"Self-Drive Option: {self_drive}\n"
         f"Dining Style: {profile.get('dining_style', 'varied')}\n"
         f"Accommodation Preference: {profile.get('accommodation', 'comfortable')}\n"
         f"Trip Budget Constraint: {budget_desc}\n"
@@ -91,11 +95,32 @@ def sanitize_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in name).strip()
 
 
-def parse_itinerary_to_dataframe(itinerary_text: str) -> pd.DataFrame:
-    """Parse day-by-day markdown itinerary into a structured tabular pandas DataFrame."""
+def parse_itinerary_to_dataframe(itinerary_text: str, purchasing_guide_text: str = "") -> pd.DataFrame:
+    """Parse day-by-day markdown itinerary and purchasing guide into a structured tabular pandas DataFrame."""
     rows = []
     current_day = "Day 1"
     current_theme = "Sightseeing"
+
+    # Add Airfare & Car Rental rows from purchasing guide if present
+    if purchasing_guide_text:
+        airfare_cost = extract_cost(purchasing_guide_text, "AIRFARE_TOTAL_SGD")
+        if airfare_cost > 0:
+            rows.append({
+                "Day": "Pre-Trip",
+                "Theme": "Transport & Flight",
+                "Time Slot": "Departure Flight",
+                "Activity Details": "Round-trip Airfare (Flights)",
+                "Est. Cost (SGD)": airfare_cost,
+            })
+        car_rental_cost = extract_cost(purchasing_guide_text, "CAR_RENTAL_TOTAL_SGD")
+        if car_rental_cost > 0:
+            rows.append({
+                "Day": "Pre-Trip",
+                "Theme": "Transport & Car Rental",
+                "Time Slot": "Self-Drive Rental",
+                "Activity Details": "5-Day Car Rental & Tolls",
+                "Est. Cost (SGD)": car_rental_cost,
+            })
 
     lines = itinerary_text.split("\n")
     for line in lines:
@@ -134,7 +159,7 @@ def parse_itinerary_to_dataframe(itinerary_text: str) -> pd.DataFrame:
                 "Day": current_day,
                 "Theme": current_theme,
                 "Time Slot": "Transport",
-                "Activity Details": "Daily transport (Local transit / taxi)",
+                "Activity Details": "Daily transport (Local transit / taxi / tolls)",
                 "Est. Cost (SGD)": cost,
             })
 
@@ -155,6 +180,8 @@ def build_recommendations_text(result: dict, destination: str, budget: float,
                                 currency: str = "SGD") -> str:
     """Build the full text file content for travel recommendations."""
     status = result.get("status", "unknown")
+    origin = result.get("origin", "Singapore")
+    self_drive = "YES (Car Rental)" if result.get("self_drive", False) else "NO"
     budget_str = "Flexible / Unlimited" if no_budget else f"S$ {budget:,.2f} {currency}"
 
     lines = []
@@ -162,7 +189,9 @@ def build_recommendations_text(result: dict, destination: str, budget: float,
     lines.append("  TRAVEL BUDDY -- TRAVEL RECOMMENDATIONS")
     lines.append("=" * 70)
     lines.append(f"  Generated:    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"  Origin:       {origin}")
     lines.append(f"  Destination:  {destination}")
+    lines.append(f"  Self-Drive:   {self_drive}")
     lines.append(f"  Budget:       {budget_str}")
     lines.append(f"  Dates:        {dates}")
     lines.append(f"  Persona:      {persona_label}")
@@ -174,6 +203,7 @@ def build_recommendations_text(result: dict, destination: str, budget: float,
             ("ITINERARY & SIGHTSEEING", "itinerary"),
             ("FOOD & RETAIL GUIDE", "food_and_retail"),
             ("ACCOMMODATION", "hotel_recommendations"),
+            ("BOOKING & PURCHASING GUIDE", "purchasing_guide"),
             ("BUDGET BREAKDOWN", "budget_breakdown"),
             ("QUALITY VERDICT (Agent-as-Judge)", "judge_verdict"),
         ]:

@@ -1,4 +1,4 @@
-"""LangGraph StateGraph compilation for Travel Buddy with troubleshooting logging."""
+"""LangGraph StateGraph compilation for Travel Buddy with purchasing agent & troubleshooting logging."""
 
 from langgraph.graph import StateGraph, END, START
 from .state import TravelBuddyState
@@ -11,12 +11,11 @@ logger = get_logger("graph")
 def build_graph(llm, search_tool):
     """Construct and compile the Travel Buddy agent graph.
 
-    Args:
-        llm: LangChain chat model instance
-        search_tool: Tavily search tool instance
-
-    Returns:
-        Compiled LangGraph application ready for .stream() or .invoke()
+    Pipeline:
+      START -> itinerary_agent -> food_retail_agent -> hospitality_agent
+            -> purchasing_agent -> budget_guardrail --(pass)--> agent_as_judge -> final_output -> END
+                                                    --(retry)--> itinerary_agent
+                                                    --(busted)--> budget_busted_fallback -> END
     """
     logger.info("Initializing graph modules and registering StateGraph nodes...")
     agents.init(llm, search_tool)
@@ -26,6 +25,7 @@ def build_graph(llm, search_tool):
     workflow.add_node("itinerary_agent", agents.itinerary_agent)
     workflow.add_node("food_retail_agent", agents.food_retail_agent)
     workflow.add_node("hospitality_agent", agents.hospitality_agent)
+    workflow.add_node("purchasing_agent", agents.purchasing_agent)
     workflow.add_node("budget_guardrail", evaluation.budget_guardrail)
     workflow.add_node("agent_as_judge", evaluation.agent_as_judge)
     workflow.add_node("budget_busted_fallback", evaluation.budget_busted_fallback)
@@ -34,7 +34,8 @@ def build_graph(llm, search_tool):
     workflow.add_edge(START, "itinerary_agent")
     workflow.add_edge("itinerary_agent", "food_retail_agent")
     workflow.add_edge("food_retail_agent", "hospitality_agent")
-    workflow.add_edge("hospitality_agent", "budget_guardrail")
+    workflow.add_edge("hospitality_agent", "purchasing_agent")
+    workflow.add_edge("purchasing_agent", "budget_guardrail")
 
     def route_after_budget_check(state):
         status = state.get("status", "planning")
@@ -64,5 +65,5 @@ def build_graph(llm, search_tool):
     workflow.add_edge("budget_busted_fallback", END)
 
     compiled_app = workflow.compile()
-    logger.info("StateGraph compiled successfully with 7 nodes.")
+    logger.info("StateGraph compiled successfully with 8 nodes including purchasing_agent.")
     return compiled_app

@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point with custom persona builder, chat assistant, default 5-day duration & infinite budget default.
+Streamlit web application entry point with origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, default 5-day duration & infinite budget default.
 """
 
 import os
@@ -102,7 +102,7 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Infinite Budget Default • 5-Day Itineraries • Custom Personas & Q&A Assistant</p>',
+    'Airfare & Car Rental Options • Purchasing Agent Booking Links • Default SGD (S$)</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -163,13 +163,21 @@ with st.sidebar:
         """)
 
     st.markdown("---")
-    st.markdown("## ✈️ Trip Details")
+    st.markdown("## ✈️ Trip & Transport Details")
+
+    origin = st.text_input(
+        "Source City (Origin)",
+        value="Singapore",
+        placeholder="e.g., Singapore or London",
+    )
 
     destination = st.text_input(
-        "Destination",
+        "Destination City/Country",
         value="Tokyo, Japan",
         placeholder="e.g., Tokyo, Japan or Paris, France",
     )
+
+    self_drive = st.checkbox("Self-Drive Option (Include Car Rental & Tolls)", value=False)
 
     # Infinite budget as default
     no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
@@ -249,7 +257,8 @@ NODE_LABELS = {
     "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning 5-day sightseeing & activities..."),
     "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping..."),
     "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation..."),
-    "budget_guardrail": ("💰", "Budget Guardrail", "Evaluating budget constraints..."),
+    "purchasing_agent": ("🛒", "Purchasing & Booking Agent", "Sourcing flights, hotels, car rental & booking links..."),
+    "budget_guardrail": ("💰", "Budget Guardrail", "Evaluating total budget constraints..."),
     "agent_as_judge": ("⚖️", "Agent-as-Judge", "Evaluating persona compliance..."),
     "final_output": ("✨", "Final Output", "Compiling approved plan..."),
     "budget_busted_fallback": ("🚨", "Budget Busted", "Budget could not be reconciled."),
@@ -259,7 +268,7 @@ NODE_LABELS = {
 # ── Main Execution ────────────────────────────────────────────────────────────
 if plan_button:
     clear_session_logs()
-    logger.info(f"Session started for destination='{destination}', persona='{persona}', no_budget={no_budget}, dates='{dates}'")
+    logger.info(f"Session started for origin='{origin}', destination='{destination}', persona='{persona}', self_drive={self_drive}, no_budget={no_budget}")
 
     if not gemini_key or not tavily_key:
         logger.error("Missing Gemini or Tavily API key.")
@@ -301,12 +310,14 @@ if plan_button:
             st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
-    st.success("✅ Agents initialized. Starting 5-day planning execution...")
+    st.success("✅ 4 Agents initialized. Starting 5-day planning & purchasing execution...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
     initial_state = {
+        "origin": origin,
         "destination": destination,
         "budget": budget,
+        "self_drive": self_drive,
         "no_budget": no_budget,
         "currency": "SGD",
         "dates": dates,
@@ -315,6 +326,7 @@ if plan_button:
         "itinerary": "",
         "food_and_retail": "",
         "hotel_recommendations": "",
+        "purchasing_guide": "",
         "budget_breakdown": "",
         "budget_attempts": 0,
         "critique_history": [],
@@ -332,7 +344,7 @@ if plan_button:
 
         completed_nodes = []
         node_count = 0
-        total_expected = 5
+        total_expected = 6
 
         try:
             for step_output in app.stream(initial_state):
@@ -356,7 +368,7 @@ if plan_button:
                             st.error(f"🚨 Budget busted after {attempt} attempts")
                         else:
                             st.warning(f"🔄 Budget attempt {attempt}/3 failed — retrying...")
-                            total_expected += 4
+                            total_expected += 5
 
             progress_bar.progress(1.0)
             status_text.markdown("**✅ Pipeline complete!**")
@@ -389,8 +401,9 @@ if plan_button:
                 unsafe_allow_html=True,
             )
 
-            tab_itin, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_chat, tab_logs = st.tabs([
+            tab_itin, tab_booking, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_chat, tab_logs = st.tabs([
                 "🗺️ Itinerary",
+                "🛒 Booking Links",
                 "📍 Location Map",
                 "📊 Tabular Itinerary",
                 "🍽️ Food & Retail",
@@ -403,6 +416,10 @@ if plan_button:
 
             with tab_itin:
                 st.markdown(result.get("itinerary", "N/A"))
+
+            with tab_booking:
+                st.markdown(f"### 🛒 Purchasing & Booking Guide ({origin} ✈️ {destination})")
+                st.markdown(result.get("purchasing_guide", "N/A"))
 
             with tab_map:
                 st.markdown(f"### 📍 Google Maps Location Visualizer — {destination}")
@@ -417,9 +434,10 @@ if plan_button:
                 st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
 
             with tab_table:
-                st.markdown("### 📊 Day-by-Day Tabular Itinerary")
+                st.markdown("### 📊 Day-by-Day Tabular Itinerary with Transport & Airfare")
                 itinerary_text = result.get("itinerary", "")
-                df_itin = parse_itinerary_to_dataframe(itinerary_text)
+                guide_text = result.get("purchasing_guide", "")
+                df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
                 st.dataframe(df_itin, use_container_width=True)
 
                 csv_data = df_itin.to_csv(index=False).encode("utf-8")
@@ -464,7 +482,7 @@ if plan_button:
                         with st.spinner("Searching & thinking..."):
                             try:
                                 from langchain_core.messages import HumanMessage, SystemMessage
-                                chat_context = f"Destination: {destination}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
+                                chat_context = f"Origin: {origin}\nDestination: {destination}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
                                 search_res = search_tool.invoke(f"{destination} {user_query}")
                                 search_info = "\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
                                 prompt = f"Context:\n{chat_context}\nWeb Info:\n{search_info}\nUser Question: {user_query}\nAnswer helpfully as a travel expert."
@@ -535,24 +553,24 @@ else:
     with col1:
         st.markdown("""
         <div class="result-card">
-            <h3>🤖 Multi-Agent & Chat Q&A</h3>
-            <p>Collaborative planning agents + interactive Q&A assistant for follow-up travel questions.</p>
+            <h3>🤖 4 Collaborative Agents</h3>
+            <p>Sightseeing, Food & Retail, Hospitality, and specialized Purchasing & Booking Expert.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
         <div class="result-card">
-            <h3>💰 Infinite Budget & 5-Day Default</h3>
-            <p>Unlimited budget by default and 5-day itineraries with custom persona builder.</p>
+            <h3>✈️ Flight & Self-Drive Options</h3>
+            <p>Calculates airfare from source city + optional car rental & toll costs in SGD.</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown("""
         <div class="result-card">
-            <h3>📍 Maps, CSV & Live Debug Logs</h3>
-            <p>Google Maps visualizer, CSV data export, and real-time system troubleshooting logs.</p>
+            <h3>🛒 Direct Booking Links & CSV</h3>
+            <p>Direct HTTPS links for flights, hotels & car rental, with tabular CSV exports.</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -564,13 +582,14 @@ else:
         A["START"] --> B["Itinerary Agent (SGD)"]
         B --> C["Food & Retail Agent (SGD)"]
         C --> D["Hospitality Agent (SGD)"]
-        D --> E{"Budget Guardrail"}
-        E -->|"Pass / Flexible"| F["Agent-as-Judge"]
-        E -->|"Retry <= 3"| B
-        E -->|"Busted"| G["Budget Busted"]
-        F --> H["Final Output & Exports / Q&A Chat"]
-        H --> I["END"]
-        G --> I
+        D --> E["Purchasing Agent (Flights & Rental Links)"]
+        E --> F{"Budget Guardrail"}
+        F -->|"Pass / Flexible"| G["Agent-as-Judge"]
+        F -->|"Retry <= 3"| B
+        F -->|"Busted"| H["Budget Busted"]
+        G --> I["Final Output & Booking Links / CSV Export"]
+        I --> J["END"]
+        H --> J
     ```
     """)
-    st.info("👈 **Configure trip details in the sidebar and click 'Plan My Trip' to start!**")
+    st.info("👈 **Configure trip & transport details in the sidebar and click 'Plan My Trip' to start!**")

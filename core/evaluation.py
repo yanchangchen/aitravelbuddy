@@ -1,4 +1,4 @@
-"""Dual-layer evaluation engine for Travel Buddy with troubleshooting logging."""
+"""Dual-layer evaluation engine for Travel Buddy with transport cost inclusion & troubleshooting logging."""
 
 from langchain_core.messages import HumanMessage
 from .personas import PERSONA_PROFILES
@@ -23,37 +23,46 @@ def init(llm):
 def budget_guardrail(state: dict) -> dict:
     """Deterministic Python budget validation node.
 
+    Includes Sightseeing, Food & Retail, Accommodation, Airfare (Flight), and Car Rental (if self-drive).
     Handles SGD pricing as primary currency and supports optional USD conversion reference.
     Supports no_budget mode (flexible / unlimited budget).
     """
     budget_sgd = state.get("budget", 0.0)
     no_budget = state.get("no_budget", False)
+    self_drive = state.get("self_drive", False)
     attempts = state.get("budget_attempts", 0)
 
-    logger.info(f"[Budget Guardrail] Evaluation attempt {attempts + 1}/3. no_budget={no_budget}, budget_sgd={budget_sgd:,.2f}")
+    logger.info(f"[Budget Guardrail] Evaluation attempt {attempts + 1}/3. no_budget={no_budget}, self_drive={self_drive}, budget_sgd={budget_sgd:,.2f}")
 
     sightseeing_sgd = extract_cost(state.get("itinerary", ""), "SIGHTSEEING_TOTAL_SGD")
     food_retail_sgd = extract_cost(state.get("food_and_retail", ""), "FOOD_RETAIL_TOTAL_SGD")
     hotel_sgd = extract_cost(state.get("hotel_recommendations", ""), "HOTEL_TOTAL_SGD")
+    airfare_sgd = extract_cost(state.get("purchasing_guide", ""), "AIRFARE_TOTAL_SGD")
+    car_rental_sgd = extract_cost(state.get("purchasing_guide", ""), "CAR_RENTAL_TOTAL_SGD") if self_drive else 0.0
 
-    total_sgd = sightseeing_sgd + food_retail_sgd + hotel_sgd
+    total_sgd = sightseeing_sgd + food_retail_sgd + hotel_sgd + airfare_sgd + car_rental_sgd
     total_usd_ref = total_sgd * SGD_TO_USD_RATE
 
     logger.info(
         f"[Budget Guardrail] Extracted costs: Sightseeing=S${sightseeing_sgd:,.2f}, "
-        f"Food/Retail=S${food_retail_sgd:,.2f}, Hotel=S${hotel_sgd:,.2f} -> "
+        f"Food/Retail=S${food_retail_sgd:,.2f}, Hotel=S${hotel_sgd:,.2f}, "
+        f"Airfare=S${airfare_sgd:,.2f}, Car Rental=S${car_rental_sgd:,.2f} -> "
         f"TOTAL=S${total_sgd:,.2f} SGD (~${total_usd_ref:,.2f} USD)"
     )
+
+    car_line = f"  Car Rental & Tolls:        S${car_rental_sgd:>10,.2f} SGD  (~${car_rental_sgd * SGD_TO_USD_RATE:,.2f} USD)\n" if self_drive else ""
 
     if no_budget or budget_sgd <= 0:
         logger.info("[Budget Guardrail] Flexible / Unlimited budget mode active — Guardrail PASSED directly.")
         breakdown = (
             f"Budget Breakdown (Attempt {attempts + 1}/3) — FLEXIBLE / UNLIMITED BUDGET\n"
-            f"{'-' * 55}\n"
+            f"{'-' * 60}\n"
             f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
             f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
             f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-            f"{'-' * 55}\n"
+            f"  Airfare (Round-trip):      S${airfare_sgd:>10,.2f} SGD  (~${airfare_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"{car_line}"
+            f"{'-' * 60}\n"
             f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
             f"  BUDGET MODE:               Unlimited / Flexible (Guardrail Bypassed)\n"
         )
@@ -71,11 +80,13 @@ def budget_guardrail(state: dict) -> dict:
 
     breakdown = (
         f"Budget Breakdown (Attempt {attempts + 1}/3)\n"
-        f"{'-' * 55}\n"
+        f"{'-' * 60}\n"
         f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
         f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
         f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-        f"{'-' * 55}\n"
+        f"  Airfare (Round-trip):      S${airfare_sgd:>10,.2f} SGD  (~${airfare_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+        f"{car_line}"
+        f"{'-' * 60}\n"
         f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
         f"  TARGET RANGE (80-90%):     S${lower_bound_sgd:,.2f} — S${upper_bound_sgd:,.2f} SGD\n"
         f"  USER BUDGET:               S${budget_sgd:>10,.2f} SGD\n"
@@ -92,7 +103,7 @@ def budget_guardrail(state: dict) -> dict:
         if total_sgd < lower_bound_sgd:
             critique = (
                 f"Attempt {attempts + 1}: Total S${total_sgd:,.2f} SGD is TOO LOW "
-                f"(below S${lower_bound_sgd:,.2f} SGD). Upgrade accommodations or add premium experiences."
+                f"(below S${lower_bound_sgd:,.2f} SGD). Upgrade accommodations, airfare, or add premium experiences."
             )
         else:
             critique = (
@@ -135,6 +146,7 @@ def agent_as_judge(state: dict) -> dict:
         f"### Itinerary:\n{state.get('itinerary', 'N/A')}\n\n"
         f"### Food & Retail:\n{state.get('food_and_retail', 'N/A')}\n\n"
         f"### Accommodation:\n{state.get('hotel_recommendations', 'N/A')}\n\n"
+        f"### Booking & Transport Guide:\n{state.get('purchasing_guide', 'N/A')}\n\n"
         f"## YOUR EVALUATION:\n\n"
         f"Respond in this EXACT format:\n\n"
         f"VERDICT: [PASS or FAIL]\n\n"
@@ -163,6 +175,7 @@ def budget_busted_fallback(state: dict) -> dict:
     notice = (
         f"BUDGET RECONCILIATION FAILED\n"
         f"{'=' * 50}\n"
+        f"Origin: {state.get('origin', 'Singapore')}\n"
         f"Destination: {state['destination']}\n"
         f"Budget: S${budget_sgd:,.2f} SGD\n"
         f"Dates: {state['dates']}\n"
