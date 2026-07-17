@@ -1,6 +1,6 @@
 """
 Travel Buddy — AI-Powered Multi-Agent Travel Planner
-Streamlit web application entry point with group composition (adults, children, infants), origin city, self-drive car rental option, purchasing agent booking links, custom persona builder, Q&A chat assistant, robust OpenStreetMap & Pydeck location maps, default 5-day duration & infinite budget default.
+Streamlit web application entry point in clean light mode with complete itinerary location mapping, group composition, self-drive options, and booking links.
 """
 
 import os
@@ -22,11 +22,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── Custom Light Mode CSS ─────────────────────────────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+        background-color: #FFFFFF;
+        color: #0F172A;
+    }
 
     .main-header {
         background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 50%, #FFC857 100%);
@@ -39,39 +43,44 @@ st.markdown("""
     }
     .sub-header {
         text-align: center;
-        color: #8892A0;
+        color: #475569;
         font-size: 1.1rem;
         margin-top: -10px;
         margin-bottom: 25px;
     }
 
     .result-card {
-        background: #1A1F2E;
+        background: #FFFFFF;
         border-radius: 12px;
         padding: 24px;
         margin: 12px 0;
-        border: 1px solid #2A3040;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
-    .result-card h3 { color: #FF8E53; margin-top: 0; }
+    .result-card h3 { color: #FF6B6B; margin-top: 0; }
 
     .badge-approved {
-        background: linear-gradient(135deg, #00C853, #69F0AE);
-        color: #0E1117;
-        padding: 6px 16px;
+        background: linear-gradient(135deg, #10B981, #34D399);
+        color: #FFFFFF;
+        padding: 8px 20px;
         border-radius: 20px;
         font-weight: 600;
         display: inline-block;
+        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
     }
     .badge-busted {
-        background: linear-gradient(135deg, #FF5252, #FF8A80);
-        color: #0E1117;
-        padding: 6px 16px;
+        background: linear-gradient(135deg, #EF4444, #F87171);
+        color: #FFFFFF;
+        padding: 8px 20px;
         border-radius: 20px;
         font-weight: 600;
         display: inline-block;
     }
 
-    section[data-testid="stSidebar"] { background: #141821; }
+    section[data-testid="stSidebar"] {
+        background-color: #F8FAFC;
+        border-right: 1px solid #E2E8F0;
+    }
 
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
@@ -87,11 +96,11 @@ st.markdown("""
     .log-box {
         font-family: 'Courier New', Courier, monospace;
         font-size: 0.85rem;
-        background-color: #0E1117;
-        color: #00FF66;
+        background-color: #0F172A;
+        color: #4ADE80;
         padding: 15px;
         border-radius: 8px;
-        border: 1px solid #2A3040;
+        border: 1px solid #334155;
         max-height: 400px;
         overflow-y: auto;
         white-space: pre-wrap;
@@ -103,7 +112,7 @@ st.markdown("""
 st.markdown('<h1 class="main-header">🌍 Travel Buddy</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="sub-header">AI-Powered Multi-Agent Travel Planner • '
-    'Group Composition (Adults & Children) • Airfare & Car Rental Options • Default SGD (S$)</p>',
+    'Group Composition Controls • Full Itinerary Location Mapping • Light Mode UI</p>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -316,6 +325,7 @@ if plan_button:
                 sanitize_filename,
                 parse_itinerary_to_dataframe,
                 geocode_location,
+                extract_all_itinerary_locations,
             )
 
             llm = ChatGoogleGenerativeAI(
@@ -447,32 +457,41 @@ if plan_button:
                 st.markdown(result.get("purchasing_guide", "N/A"))
 
             with tab_map:
-                st.markdown(f"### 📍 Interactive Location Map — {destination}")
+                st.markdown(f"### 📍 Complete Itinerary Map — {destination}")
+
+                itinerary_text = result.get("itinerary", "")
+                loc_list = extract_all_itinerary_locations(itinerary_text, destination)
+                df_map = pd.DataFrame(loc_list)
+
+                if not df_map.empty:
+                    mean_lat = df_map["lat"].mean()
+                    mean_lon = df_map["lon"].mean()
+                    st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across all itinerary days.")
+
+                    # 3D Pydeck Map with Day Pins
+                    view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=11, pitch=35)
+                    layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        data=df_map,
+                        get_position=["lon", "lat"],
+                        get_color="[255, 107, 107, 220]",
+                        get_radius=400,
+                        pickable=True,
+                    )
+                    deck = pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=view_state,
+                        tooltip={"text": "[{day}] {title}"},
+                    )
+                    st.pydeck_chart(deck)
+
+                    # List of mapped locations table
+                    st.markdown("#### 📌 Extracted Itinerary Locations")
+                    st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+
                 encoded_dest = urllib.parse.quote(destination)
-
-                coords = geocode_location(destination)
-                if not coords:
-                    coords = (35.6762, 139.6503)
-
-                lat, lon = coords
-                st.markdown(f"**Center Coordinates:** `{lat:.4f}, {lon:.4f}`")
-
-                # Layer 1: Pydeck 3D Scatterplot Map
-                map_df = pd.DataFrame([{"name": destination, "lat": lat, "lon": lon}])
-                view_state = pdk.ViewState(latitude=lat, longitude=lon, zoom=11, pitch=35)
-                layer = pdk.Layer(
-                    "ScatterplotLayer",
-                    data=map_df,
-                    get_position=["lon", "lat"],
-                    get_color="[255, 107, 107, 220]",
-                    get_radius=500,
-                    pickable=True,
-                )
-                deck = pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{name}"})
-                st.pydeck_chart(deck)
-
                 st.markdown("#### 🗺️ Interactive OpenStreetMap View")
-                osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={lon-0.08:.4f},{lat-0.08:.4f},{lon+0.08:.4f},{lat+0.08:.4f}&layer=mapnik&marker={lat:.4f},{lon:.4f}"
+                osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
                 st.components.v1.iframe(osm_url, height=450, scrolling=False)
 
                 if gmaps_key:
@@ -480,12 +499,12 @@ if plan_button:
                     gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
                     st.components.v1.iframe(gmaps_url, height=450, scrolling=True)
 
-                st.markdown("#### 🔗 External Map Navigation")
+                st.markdown("#### 🔗 Direct Map Navigation Links")
                 col_gmap, col_osm = st.columns(2)
                 with col_gmap:
                     st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
                 with col_osm:
-                    st.markdown(f"[👉 Open {destination} on OpenStreetMap](https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=12/{lat:.4f}/{lon:.4f})")
+                    st.markdown(f"[👉 Open {destination} on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
 
             with tab_table:
                 st.markdown(f"### 📊 Day-by-Day Tabular Itinerary for {travelers_summary}")
@@ -623,8 +642,8 @@ else:
     with col3:
         st.markdown("""
         <div class="result-card">
-            <h3>📍 Multi-Layer Maps & CSV</h3>
-            <p>3D Pydeck maps, OpenStreetMap, Google Maps embeds, direct links, and CSV export.</p>
+            <h3>📍 Multi-Location Itinerary Maps</h3>
+            <p>Geocodes & plots pins for ALL day-by-day itinerary attractions on Pydeck & OpenStreetMap.</p>
         </div>
         """, unsafe_allow_html=True)
 

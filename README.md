@@ -5,12 +5,14 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange)](https://github.com/langchain-ai/langgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, and **Google Gemini** (`gemini-3.1-flash-lite`). It coordinates four specialized AI agents to generate personalized 5-day travel itineraries, dining recommendations, hotel options, round-trip airfare estimates from origin cities for group compositions (Adults, Children, Infants), self-drive car rental options in **Singapore Dollars (SGD / S$)** (with infinite budget by default), custom persona builders, purchasing agents with direct booking links, Google Maps visualizers, and an interactive Q&A Chat Assistant.
+**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, and **Google Gemini** (`gemini-3.1-flash-lite`). It coordinates four specialized AI agents to generate personalized 5-day travel itineraries, dining recommendations, hotel options, round-trip airfare estimates from origin cities for group compositions (Adults, Children, Infants), self-drive car rental options in **Singapore Dollars (SGD / S$)** (with infinite budget by default), custom persona builders, purchasing agents with direct booking links, **full itinerary location mapping** in a sleek **Light Mode UI**, and an interactive Q&A Chat Assistant.
 
 ---
 
 ## 🌟 Key Features
 
+- ☀️ **Clean Light Mode UI:** Vibrant light theme (`#FFFFFF` background, `#F8FAFC` slate sidebar, `#0F172A` high-contrast typography).
+- 📍 **Full Itinerary Location Mapping:** Automatically extracts and geocodes ALL day-by-day sightseeing venues, plotting interactive 3D pins for every activity on Pydeck & OpenStreetMap.
 - 👥 **Group Composition Controls:** Customizable Adults (default: 2), Children >2 yrs (default: 1), and Infants <2 yrs (default: 0).
 - 🔑 **Google Maps API Key Validated:** Streamlit secrets & sidebar key inputs fully compatible with Google Maps Embed API.
 - 🛒 **Purchasing & Booking Agent:** Dedicated expert agent sourcing real flight prices, car rental rates, and generating direct clickable HTTPS booking links for flights, hotels, car rentals, and attraction tickets.
@@ -20,7 +22,6 @@
 - ♾️ **Flexible / No-Budget Default:** Unlimited budget mode active by default to focus on optimal experiences.
 - 🛠️ **Custom Persona Builder:** Select from 4 built-in personas or define your own custom persona rules, tempo, mobility, dining, and lodging preferences.
 - 💬 **Travel Assistant Q&A Chat:** Interactive follow-up chatbot tab using Gemini + Tavily search for packing tips, local advice, and travel questions.
-- 📍 **Google Maps Location Visualizer:** Embedded interactive Google Maps for destination attractions with step-by-step API key setup instructions.
 - 📊 **Tabular Itinerary & CSV Export:** Displays itineraries as structured data tables (including flight and car rental rows) and enables one-click **CSV**, **Full Text (.txt)**, and **Debug Log (.log)** downloads.
 - 🤖 **4 Collaborative Agents:** Sequential generation pipeline with specialized agents for Sightseeing, Food & Retail, Hospitality, and Purchasing.
 
@@ -64,17 +65,17 @@ graph TD
 ```
 aitravelbuddy/
 ├── .streamlit/
-│   └── config.toml          # Dark theme UI settings
+│   └── config.toml          # Light theme UI settings
 ├── core/
 │   ├── __init__.py          # Core package init
 │   ├── logger.py            # Troubleshooting logger & memory buffer
 │   ├── state.py             # LangGraph TravelBuddyState schema (with num_adults, num_children, num_infants)
 │   ├── personas.py          # Demographic profile definitions (Single, Couple, Family, Backpacker)
-│   ├── utils.py             # Cost extraction, prompt formatting, DataFrame parser, text export
+│   ├── utils.py             # Cost extraction, prompt formatting, DataFrame parser, extract_all_itinerary_locations
 │   ├── agents.py            # Itinerary, Food/Retail, Hospitality, and Purchasing agent nodes
 │   ├── evaluation.py        # Budget guardrail (with transport costs) & Agent-as-Judge nodes
 │   └── graph.py             # StateGraph setup & conditional routing logic (8 nodes)
-├── app.py                   # Streamlit web frontend (Travelers, Purchasing Guide, Self-Drive, Q&A Chat, Maps, CSV)
+├── app.py                   # Streamlit web frontend in Light Mode (Full Location Maps, Q&A Chat, CSV)
 ├── requirements.txt         # Project dependencies
 ├── specifications.md        # Comprehensive technical specification
 └── README.md                # Project documentation

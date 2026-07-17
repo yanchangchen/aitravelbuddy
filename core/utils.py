@@ -67,6 +67,59 @@ def geocode_location(location_name: str):
     return None
 
 
+def extract_all_itinerary_locations(itinerary_text: str, destination: str) -> list:
+    """Extract day-by-day venue/attraction names from itinerary text and geocode them."""
+    locations = []
+    current_day = "Day 1"
+    dest_coords = geocode_location(destination) or (35.6762, 139.6503)
+
+    lines = itinerary_text.split("\n")
+    for line in lines:
+        line_str = line.strip()
+        day_match = re.match(r"^##\s*(Day\s*\d+)", line_str, re.IGNORECASE)
+        if day_match:
+            current_day = day_match.group(1).strip()
+            continue
+
+        activity_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
+        if activity_match:
+            detail = activity_match.group(2).strip()
+            clean_detail = re.sub(r"—\s*Est\.\s*cost:.*", "", detail, flags=re.IGNORECASE).strip()
+            parts = re.split(r"—|–|\(|\)", clean_detail)
+            raw_venue = parts[0].strip() if parts else clean_detail
+
+            sub_venues = [v.strip() for v in re.split(r"&| and ", raw_venue) if v.strip()]
+
+            for venue in sub_venues:
+                if len(venue) > 2 and not venue.lower().startswith("daily transport"):
+                    search_query = f"{venue}, {destination}"
+                    coords = geocode_location(search_query)
+                    if not coords:
+                        coords = geocode_location(venue)
+
+                    lat, lon = coords if coords else (dest_coords[0], dest_coords[1])
+                    locations.append({
+                        "day": current_day,
+                        "title": venue,
+                        "query": search_query,
+                        "lat": lat,
+                        "lon": lon,
+                        "geocoded": coords is not None
+                    })
+
+    if not locations:
+        locations.append({
+            "day": "Day 1",
+            "title": destination,
+            "query": destination,
+            "lat": dest_coords[0],
+            "lon": dest_coords[1],
+            "geocoded": True
+        })
+
+    return locations
+
+
 def get_persona_context(state: dict, persona_profiles: dict) -> str:
     """Build persona-aware context string for injection into agent prompts."""
     persona_key = state["persona"].lower().strip()
