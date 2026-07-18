@@ -136,10 +136,14 @@ def agent_as_judge(state: dict) -> dict:
     persona_key = state["persona"].lower().strip()
     profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["couple"])
 
+    num_days = state.get("num_days", 5)
+
     prompt = (
         f"You are an impartial travel plan quality inspector.\n\n"
-        f"Your task is to evaluate the following travel plan against the MANDATORY persona rules.\n"
-        f"You must be STRICT. Any rule violation results in a FAIL.\n\n"
+        f"Your task is to evaluate the following travel plan against the MANDATORY persona rules AND the required trip length.\n"
+        f"You must be STRICT. Any rule violation or missing days results in a FAIL.\n\n"
+        f"## TRIP LENGTH REQUIREMENT:\n"
+        f"The itinerary MUST explicitly cover exactly {num_days} days (Day 1 through Day {num_days}). If it plans fewer or more than {num_days} days, fail the evaluation.\n\n"
         f"## PERSONA: {profile['label']}\n"
         f"## MANDATORY RULES:\n{profile['rules']}\n\n"
         f"## TRAVEL PLAN TO EVALUATE:\n\n"
@@ -153,7 +157,8 @@ def agent_as_judge(state: dict) -> dict:
         f"SCORE: [1-10]\n\n"
         f"RULE-BY-RULE CHECK:\n"
         f"1. [Rule text] \u2014 [PASS/FAIL] \u2014 [Brief evidence]\n"
-        f"...\n\n"
+        f"...\n"
+        f"X. Trip Length ({num_days} Days) \u2014 [PASS/FAIL] \u2014 [Evidence]\n\n"
         f"OVERALL ASSESSMENT:\n"
         f"[2-3 sentences summarizing the quality of the plan]"
     )

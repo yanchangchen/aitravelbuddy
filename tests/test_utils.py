@@ -64,6 +64,15 @@ class TestUtils(unittest.TestCase):
         self.assertIn("APPROVED", text)
         self.assertIn("Tokyo", text)
 
+    def test_dynamic_date_calculation(self):
+        from datetime import date
+        start_d = date(2026, 11, 10)
+        end_d = date(2026, 11, 24)
+        num_days = (end_d - start_d).days + 1
+        dates_str = f"{start_d.strftime('%b %d, %Y')} - {end_d.strftime('%b %d, %Y')}"
+        self.assertEqual(num_days, 15)
+        self.assertEqual(dates_str, "Nov 10, 2026 - Nov 24, 2026")
+
 
 if __name__ == "__main__":
     unittest.main()

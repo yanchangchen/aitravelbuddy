@@ -148,6 +148,28 @@ with st.sidebar:
     tavily_key = secret_tavily
     gmaps_key = secret_gmaps
 
+    if is_db_ready():
+        st.markdown("## 💾 Saved Trips (Supabase)")
+        saved_trips = get_saved_trips()
+        if saved_trips:
+            trip_options = {
+                f"{t.get('destination', 'Trip')} ({t.get('persona_label', 'Plan')}) - {t.get('travel_dates', '')}": t.get("id")
+                for t in saved_trips
+            }
+            selected_trip_label = st.selectbox("Select Past Trip", options=list(trip_options.keys()))
+            if st.button("📂 Load Selected Plan", use_container_width=True):
+                trip_id = trip_options[selected_trip_label]
+                loaded_state = get_trip_plan(trip_id)
+                if loaded_state:
+                    st.session_state.current_result = loaded_state
+                    st.success("Loaded trip from database!")
+                    st.rerun()
+                else:
+                    st.error("Failed to load plan.")
+        else:
+            st.caption("No saved trips found in database.")
+        st.markdown("---")
+
     st.markdown("## 👥 Travelers & Group Composition")
     col_a, col_c, col_i = st.columns(3)
     with col_a:
@@ -199,12 +221,31 @@ with st.sidebar:
         budget = 0.0
         st.caption("ℹ️ Unlimited budget mode active. Agents will focus on best experiences.")
 
-    # Default 5 days: March 10-14, 2025
-    dates = st.text_input(
-        "Travel Dates (5 Days)",
-        value="March 10-14, 2025",
-        placeholder="e.g., March 10-14, 2025",
+    from datetime import date, timedelta
+    default_start = date.today()
+    default_end = default_start + timedelta(days=4)
+    selected_dates = st.date_input(
+        "Travel Dates",
+        value=(default_start, default_end),
+        min_value=date.today(),
+        help="Select your trip start and end dates.",
     )
+
+    if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+        start_d, end_d = selected_dates
+        num_days = max(1, (end_d - start_d).days + 1)
+        dates_str = f"{start_d.strftime('%b %d, %Y')} - {end_d.strftime('%b %d, %Y')}"
+    elif isinstance(selected_dates, tuple) and len(selected_dates) == 1:
+        start_d = selected_dates[0]
+        num_days = 1
+        dates_str = f"{start_d.strftime('%b %d, %Y')}"
+    else:
+        start_d = selected_dates
+        num_days = 1
+        dates_str = f"{start_d.strftime('%b %d, %Y')}"
+
+    st.caption(f"📅 Duration: **{num_days} Day{'s' if num_days > 1 else ''}** ({dates_str})")
+    dates = dates_str
 
     st.markdown("### 🎭 Traveler Persona")
     persona_options = {
@@ -259,14 +300,14 @@ with st.sidebar:
 
 # ── Node display labels ──────────────────────────────────────────────────────
 NODE_LABELS = {
-    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning 5-day sightseeing & activities..."),
+    "itinerary_agent": ("🗺️", "Itinerary Agent", "Planning day-by-day sightseeing & activities..."),
     "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping..."),
     "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation..."),
     "purchasing_agent": ("🛒", "Purchasing & Booking Agent", "Sourcing flights, hotels, car rental & booking links..."),
     "budget_guardrail": ("💰", "Budget Guardrail", "Evaluating total budget constraints..."),
     "agent_as_judge": ("⚖️", "Agent-as-Judge", "Evaluating persona compliance..."),
     "final_output": ("✨", "Final Output", "Compiling approved plan..."),
-    "budget_busted_fallback": ("🚨", "Budget Busted", "Budget could not be reconciled."),
+    "terminal_fallback": ("🚨", "Planning Failed", "Budget or quality constraints could not be met."),
 }
 
 
@@ -332,6 +373,7 @@ if plan_button:
         "no_budget": no_budget,
         "currency": "SGD",
         "dates": dates,
+        "num_days": num_days,
         "persona": persona,
         "custom_persona_profile": custom_profile,
         "itinerary": "",
@@ -494,12 +536,17 @@ if plan_button:
                     df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
                     st.dataframe(df_itin, use_container_width=True)
 
-                    csv_data = df_itin.to_csv(index=False).encode("utf-8")
+                    import io
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        df_itin.to_excel(writer, index=False, sheet_name='Itinerary')
+                    excel_data = excel_buffer.getvalue()
+
                     st.download_button(
-                        label="📥 Download Itinerary as CSV",
-                        data=csv_data,
-                        file_name=f"travel_itinerary_{sanitize_filename(destination).lower()}.csv",
-                        mime="text/csv",
+                        label="📥 Download Itinerary as Excel (.xlsx)",
+                        data=excel_data,
+                        file_name=f"travel_itinerary_{sanitize_filename(destination).lower()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True,
                     )
 

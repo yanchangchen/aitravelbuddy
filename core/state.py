@@ -28,6 +28,7 @@ class TravelBuddyState(TypedDict, total=False):
     no_budget: bool            # True if user selected flexible/unlimited budget
     currency: str              # Currency code, e.g. "SGD"
     dates: str
+    num_days: int              # Total number of travel days calculated from dates
     persona: str
     custom_persona_profile: Optional[dict]
     itinerary: str

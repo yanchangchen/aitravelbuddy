@@ -82,17 +82,20 @@ def itinerary_agent(state: dict) -> dict:
         f"top attractions things to do in {destination} {state['dates']}"
     )
 
+    num_days = state.get("num_days", 5)
+
     prompt = (
         f"You are an expert travel itinerary planner.\n\n"
         f"{persona_ctx}\n\n"
         f"ORIGIN: {origin}\n"
         f"DESTINATION: {destination}\n"
-        f"TRAVEL DATES: {state['dates']}\n"
+        f"TRAVEL DATES: {state['dates']} ({num_days} Days Total)\n"
+        f"NUMBER OF DAYS: {num_days}\n"
         f"TRANSPORT MODE: {drive_note}\n"
         f"{budget_line}\n"
         f"{critique_ctx}\n\n"
         f"REAL-TIME RESEARCH (from web search):\n{search_context}\n\n"
-        f"GENERATE a detailed day-by-day itinerary following this EXACT format:\n\n"
+        f"GENERATE a detailed day-by-day itinerary covering ALL {num_days} DAYS (Day 1 through Day {num_days}) following this EXACT format:\n\n"
         f"## Day N: [Theme/Title]\n"
         f"- **[Time Block 1] (TIME):** [Activity] \u2014 Est. cost: S$XX\n"
         f"- **[Time Block 2] (TIME):** [Activity] \u2014 Est. cost: S$XX\n"
@@ -102,6 +105,7 @@ def itinerary_agent(state: dict) -> dict:
         f"At the very end, include a line:\n"
         f"SIGHTSEEING_TOTAL_SGD: [number]\n\n"
         f"Rules:\n"
+        f"- You MUST generate exactly {num_days} days (from Day 1 through Day {num_days}). Do not skip or shorten any days.\n"
         f"- Adapt the Time Blocks (Morning/Afternoon/Evening) based on the persona's schedule constraints (e.g. Business traveler only has free time in Evenings/Mornings).\n"
         f"- Be realistic with prices in Singapore Dollars (SGD / S$) for {destination}\n"
         f"- Follow persona pacing rules STRICTLY\n"
@@ -227,11 +231,12 @@ def purchasing_agent(state: dict) -> dict:
     if self_drive:
         car_search = _search(f"car rental in {destination} daily rates companies")
 
+    num_days = state.get("num_days", 5)
     prompt = (
         f"You are a specialized Purchasing & Travel Booking Expert.\n\n"
         f"ORIGIN / SOURCE CITY: {origin}\n"
         f"DESTINATION: {destination}\n"
-        f"TRAVEL DATES: {state['dates']}\n"
+        f"TRAVEL DATES: {state['dates']} ({num_days} Days)\n"
         f"SELF-DRIVE OPTION: {'YES (Include Car Rental)' if self_drive else 'NO (No Car Rental Needed)'}\n"
         f"ITINERARY & SIGHTSEEING:\n{state.get('itinerary', 'N/A')}\n\n"
         f"RECOMMENDED HOTEL:\n{state.get('hotel_recommendations', 'N/A')}\n\n"
@@ -253,7 +258,7 @@ def purchasing_agent(state: dict) -> dict:
         f"  - [Agoda Booking Portal](https://www.agoda.com)\n"
         f"  - [Booking.com Deals](https://www.booking.com)\n"
         f"  - [Trip.com Accommodation](https://www.trip.com)\n\n"
-        f"{'### 🚗 Self-Drive & Car Rental Guide\n' + '- **Estimated Car Rental:** S$XX SGD/day (Total: S$XX SGD for 5 days)\n- **Estimated Fuel & Tolls:** S$XX SGD\n- **Recommended Car Rental Portals:**\n  - [Rentalcars.com](https://www.rentalcars.com)\n  - [Klook Car Rental Deals](https://www.klook.com)\n  - [Hertz / Local Car Rental](https://www.hertz.com)\n\n' if self_drive else ''}"
+        f"{'### 🚗 Self-Drive & Car Rental Guide\n' + f'- **Estimated Car Rental:** S$XX SGD/day (Total: S$XX SGD for {num_days} days)\n- **Estimated Fuel & Tolls:** S$XX SGD\n- **Recommended Car Rental Portals:**\n  - [Rentalcars.com](https://www.rentalcars.com)\n  - [Klook Car Rental Deals](https://www.klook.com)\n  - [Hertz / Local Car Rental](https://www.hertz.com)\n\n' if self_drive else ''}"
         f"### 🎫 Attraction Tickets & Tours\n"
         f"- **Recommended Booking Sites:**\n"
         f"  - [Klook Attraction Tickets](https://www.klook.com)\n"

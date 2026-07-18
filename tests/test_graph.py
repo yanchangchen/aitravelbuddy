@@ -23,7 +23,7 @@ class TestGraph(unittest.TestCase):
             "purchasing_agent",
             "budget_guardrail",
             "agent_as_judge",
-            "budget_busted_fallback",
+            "terminal_fallback",
             "final_output",
         ]
         for node in expected_nodes:
