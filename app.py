@@ -719,18 +719,17 @@ elif "current_result" in st.session_state and st.session_state.current_result:
     res_budget = result.get("budget", budget)
     res_custom_profile = result.get("custom_persona_profile", custom_profile)
 
-    with result_container:
-        if is_db_ready() and status == "approved":
-            if st.button("💾 Save Trip"):
-                p_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"] if res_persona != "custom" else "Custom Persona"
-                if save_trip_plan(res_destination, res_travelers, p_label, res_dates, result):
-                    st.success("Trip saved successfully!")
-                else:
-                    st.error("Failed to save trip.")
+    if is_db_ready() and status == "approved":
+        if st.button("💾 Save Trip"):
+            p_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"] if res_persona != "custom" else "Custom Persona"
+            if save_trip_plan(res_destination, res_travelers, p_label, res_dates, result):
+                st.success("Trip saved successfully!")
+            else:
+                st.error("Failed to save trip.")
 
-        st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
-        if status == "approved":
+    if status == "approved":
             st.markdown(
                 f'<span class="badge-approved">✅ TRIP PLAN APPROVED for {res_travelers}</span>',
                 unsafe_allow_html=True,
