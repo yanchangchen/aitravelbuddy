@@ -148,12 +148,12 @@ with st.sidebar:
     tavily_key = secret_tavily
     gmaps_key = secret_gmaps
 
+    st.markdown("## 💾 Saved Trips")
     if is_db_ready():
-        st.markdown("## 💾 Saved Trips (Supabase)")
         saved_trips = get_saved_trips()
         if saved_trips:
             trip_options = {
-                f"{t.get('destination', 'Trip')} ({t.get('persona_label', 'Plan')}) - {t.get('travel_dates', '')}": t.get("id")
+                f"{t.get('destination', 'Trip')} ({t.get('persona', 'Plan')}) - {t.get('dates', '')}": t.get("id")
                 for t in saved_trips
             }
             selected_trip_label = st.selectbox("Select Past Trip", options=list(trip_options.keys()))
@@ -162,13 +162,15 @@ with st.sidebar:
                 loaded_state = get_trip_plan(trip_id)
                 if loaded_state:
                     st.session_state.current_result = loaded_state
-                    st.success("Loaded trip from database!")
+                    st.success("Loaded trip from storage!")
                     st.rerun()
                 else:
                     st.error("Failed to load plan.")
         else:
-            st.caption("No saved trips found in database.")
-        st.markdown("---")
+            st.caption("No saved trips found.")
+    else:
+        st.caption("⚠️ Storage connection unavailable.")
+    st.markdown("---")
 
     st.markdown("## 👥 Travelers & Group Composition")
     col_a, col_c, col_i = st.columns(3)
@@ -456,7 +458,7 @@ if plan_button:
     # ── Display Results ───────────────────────────────────────────────────
     with result_container:
         if is_db_ready() and status == "approved":
-            if st.button("💾 Save Trip to Supabase"):
+            if st.button("💾 Save Trip"):
                 p_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"] if persona != "custom" else "Custom Persona"
                 if save_trip_plan(destination, travelers_summary, p_label, dates, result):
                     st.success("Trip saved successfully!")
@@ -663,6 +665,162 @@ if plan_button:
             use_container_width=True,
         )
 
+elif "current_result" in st.session_state and st.session_state.current_result:
+    result = st.session_state.current_result
+    status = result.get("status", "unknown")
+    res_destination = result.get("destination", destination)
+    res_travelers = result.get("travelers_summary", travelers_summary)
+    res_dates = result.get("dates", dates)
+    res_origin = result.get("origin", origin)
+    res_persona = result.get("persona", persona)
+    res_no_budget = result.get("no_budget", no_budget)
+    res_budget = result.get("budget", budget)
+    res_custom_profile = result.get("custom_persona_profile", custom_profile)
+
+    with result_container:
+        if is_db_ready() and status == "approved":
+            if st.button("💾 Save Trip"):
+                p_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"] if res_persona != "custom" else "Custom Persona"
+                if save_trip_plan(res_destination, res_travelers, p_label, res_dates, result):
+                    st.success("Trip saved successfully!")
+                else:
+                    st.error("Failed to save trip.")
+
+        st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
+
+        if status == "approved":
+            st.markdown(
+                f'<span class="badge-approved">✅ TRIP PLAN APPROVED for {res_travelers}</span>',
+                unsafe_allow_html=True,
+            )
+
+            tab_itin_map, tab_hotel_food, tab_logistics, tab_chat, tab_advanced = st.tabs([
+                "🗺️ Trip Plan & Map",
+                "🏨 Hotels & Dining",
+                "🛒 Flights & Budget",
+                "💬 Travel Assistant",
+                "⚙️ Under the Hood",
+            ])
+
+            with tab_itin_map:
+                st.markdown(result.get("itinerary", "N/A"))
+                st.markdown("---")
+                st.markdown(f"### 📍 Complete Itinerary Map — {res_destination}")
+
+                itinerary_text = result.get("itinerary", "")
+                loc_list = extract_all_itinerary_locations(itinerary_text, res_destination)
+                df_map = pd.DataFrame(loc_list)
+
+                if not df_map.empty:
+                    mean_lat = df_map["lat"].mean()
+                    mean_lon = df_map["lon"].mean()
+                    st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across all itinerary days.")
+
+                    view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=11, pitch=35)
+                    layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        data=df_map,
+                        get_position=["lon", "lat"],
+                        get_color="[255, 107, 107, 220]",
+                        get_radius=400,
+                        pickable=True,
+                    )
+                    deck = pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=view_state,
+                        tooltip={"text": "[{day}] {title}"},
+                    )
+                    st.pydeck_chart(deck)
+
+                    with st.expander("📌 View Extracted Itinerary Locations"):
+                        st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+
+                encoded_dest = urllib.parse.quote(res_destination)
+                col_gmap, col_osm = st.columns(2)
+                with col_osm:
+                    st.markdown("#### 🗺️ OpenStreetMap")
+                    if not df_map.empty:
+                        osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
+                        st.components.v1.iframe(osm_url, height=300, scrolling=False)
+                        st.markdown(f"[👉 Open on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
+
+                with col_gmap:
+                    if gmaps_key:
+                        st.markdown("#### 🗺️ Google Maps")
+                        gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+                        st.components.v1.iframe(gmaps_url, height=300, scrolling=True)
+                    st.markdown(f"[👉 Open on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
+
+                st.markdown("---")
+                with st.expander("📊 Day-by-Day Tabular Itinerary"):
+                    guide_text = result.get("purchasing_guide", "")
+                    df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
+                    st.dataframe(df_itin, use_container_width=True)
+
+                    import io
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                        df_itin.to_excel(writer, index=False, sheet_name='Itinerary')
+                    excel_data = excel_buffer.getvalue()
+
+                    st.download_button(
+                        label="📥 Download Itinerary as Excel (.xlsx)",
+                        data=excel_data,
+                        file_name=f"travel_itinerary_{sanitize_filename(res_destination).lower()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+
+            with tab_hotel_food:
+                st.markdown("### 🏨 Accommodation")
+                st.markdown(result.get("hotel_recommendations", "N/A"))
+                st.markdown("---")
+                st.markdown("### 🍽️ Food & Retail")
+                st.markdown(result.get("food_and_retail", "N/A"))
+
+            with tab_logistics:
+                st.markdown(f"### 🛒 Purchasing & Booking Guide ({res_travelers} • {res_origin} ✈️ {res_destination})")
+                st.markdown(result.get("purchasing_guide", "N/A"))
+                st.markdown("---")
+                st.markdown("### 💰 Budget Breakdown & Currency Converter")
+                st.code(result.get("budget_breakdown", "N/A"), language=None)
+
+            with tab_chat:
+                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
+                st.caption(f"Ask follow-up travel questions about {res_destination}, packing for {res_travelers}, local transit, or family customs!")
+                if "chat_messages" not in st.session_state:
+                    st.session_state.chat_messages = []
+                for msg in st.session_state.chat_messages:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+
+            with tab_advanced:
+                with st.expander("⚖️ Quality Verdict (Agent-as-Judge)"):
+                    st.markdown(result.get("judge_verdict", "N/A"))
+                with st.expander("📜 Session Execution & Troubleshooting Logs"):
+                    logs_content = get_session_logs()
+                    st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
+        st.markdown("### 📥 Download Complete Recommendations Report")
+        if res_persona == "custom" and res_custom_profile:
+            persona_label = res_custom_profile.get("label", "Custom Persona")
+        else:
+            persona_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"]
+
+        file_content = build_recommendations_text(
+            result, res_destination, res_budget, res_dates, persona_label, no_budget=res_no_budget, currency="SGD"
+        )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_dest = sanitize_filename(res_destination).replace(" ", "_").lower()
+        filename = f"travel_buddy_{safe_dest}_{timestamp}.txt"
+        st.download_button(
+            label=f"💾 Download Full Text Report ({filename})",
+            data=file_content,
+            file_name=filename,
+            mime="text/plain",
+            use_container_width=True,
+        )
 else:
     # ── Landing state ─────────────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
