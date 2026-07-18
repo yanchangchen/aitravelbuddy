@@ -12,6 +12,14 @@ from datetime import datetime
 
 from core.logger import get_logger, get_session_logs, clear_session_logs
 from core.db import init_db, is_db_ready, save_trip_plan, get_saved_trips, get_trip_plan
+from core.personas import PERSONA_PROFILES
+from core.utils import (
+    build_recommendations_text,
+    sanitize_filename,
+    parse_itinerary_to_dataframe,
+    geocode_location,
+    extract_all_itinerary_locations,
+)
 
 logger = get_logger("app")
 
@@ -338,14 +346,6 @@ if plan_button:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_community.tools.tavily_search import TavilySearchResults
             from core.graph import build_graph
-            from core.personas import PERSONA_PROFILES
-            from core.utils import (
-                build_recommendations_text,
-                sanitize_filename,
-                parse_itinerary_to_dataframe,
-                geocode_location,
-                extract_all_itinerary_locations,
-            )
 
             llm = ChatGoogleGenerativeAI(
                 model="gemini-3.1-flash-lite",
