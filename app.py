@@ -363,6 +363,24 @@ if plan_button:
     st.success(f"✅ 4 Agents initialized for {travelers_summary}. Starting planning for {dates}...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
+    if "force_persona" in st.session_state:
+        persona = st.session_state.pop("force_persona")
+    if "force_dates" in st.session_state:
+        dates = st.session_state.pop("force_dates")
+    if "force_custom_instructions" in st.session_state:
+        custom_instructions = st.session_state.pop("force_custom_instructions")
+        if custom_profile:
+            custom_profile["rules"] += f"\n- {custom_instructions}"
+        else:
+            custom_profile = {
+                "label": "🎨 Custom Persona",
+                "tempo": "medium",
+                "mobility": "standard",
+                "dining_style": "varied",
+                "accommodation": "comfortable",
+                "rules": f"1. {custom_instructions}",
+            }
+
     initial_state = {
         "origin": origin,
         "destination": destination,
@@ -579,8 +597,32 @@ if plan_button:
                         st.caption(f"Estimated rate: 1 SGD = {rate} {target_curr.split()[0]}")
 
             with tab_chat:
-                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
-                st.caption(f"Ask follow-up travel questions about {destination}, packing for {travelers_summary}, local transit, or family customs!")
+                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant & Trip Modifier")
+                st.caption(f"Ask follow-up travel questions about {destination}, packing for {travelers_summary}, or iterate on preferences below to regenerate the plan!")
+
+                with st.expander("✏️ Iterate & Regenerate Loaded Plan", expanded=True):
+                    st.markdown("Want to modify this trip plan for a different persona or duration?")
+                    col_mod1, col_mod2 = st.columns(2)
+                    with col_mod1:
+                        mod_persona_disp = st.selectbox(
+                            "Switch Persona Profile",
+                            options=list(persona_options.keys()),
+                            key="chat_mod_persona_1"
+                        )
+                    with col_mod2:
+                        mod_dates = st.text_input("Adjust Travel Dates / Duration", value=str(dates), key="chat_mod_dates_1")
+                    
+                    mod_instructions = st.text_input("Additional Custom Requests", placeholder="e.g. Add 2 days of luxury hot spring ryokans", key="chat_mod_inst_1")
+                    
+                    if st.button("🔄 Apply Preferences & Regenerate Trip Plan", type="primary", use_container_width=True, key="chat_mod_btn_1"):
+                        st.session_state.force_persona = persona_options[mod_persona_disp]
+                        st.session_state.force_dates = mod_dates
+                        if mod_instructions.strip():
+                            st.session_state.force_custom_instructions = mod_instructions
+                        st.info("🔄 Preferences updated! Triggering agent pipeline...")
+                        st.rerun()
+
+                st.markdown("---")
 
                 if "chat_messages" not in st.session_state:
                     st.session_state.chat_messages = []
@@ -599,10 +641,10 @@ if plan_button:
                         with st.spinner("Searching & thinking..."):
                             try:
                                 from langchain_core.messages import HumanMessage
-                                chat_context = f"Origin: {origin}\\nDestination: {destination}\\nTravelers: {travelers_summary}\\nDates: {dates}\\nItinerary Context:\\n{result.get('itinerary','')[:1000]}"
+                                chat_context = f"Origin: {origin}\nDestination: {destination}\nTravelers: {travelers_summary}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
                                 search_res = search_tool.invoke(f"{destination} {user_query}")
-                                search_info = "\\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
-                                prompt = f"Context:\\n{chat_context}\\nWeb Info:\\n{search_info}\\nUser Question: {user_query}\\nAnswer helpfully as a travel expert."
+                                search_info = "\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
+                                prompt = f"Context:\n{chat_context}\nWeb Info:\n{search_info}\nUser Question: {user_query}\nAnswer helpfully as a travel expert."
                                 answer_resp = llm.invoke([HumanMessage(content=prompt)])
                                 answer_text = answer_resp.content if isinstance(answer_resp.content, str) else str(answer_resp.content)
                                 st.markdown(answer_text)
@@ -786,8 +828,33 @@ elif "current_result" in st.session_state and st.session_state.current_result:
                 st.code(result.get("budget_breakdown", "N/A"), language=None)
 
             with tab_chat:
-                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
-                st.caption(f"Ask follow-up travel questions about {res_destination}, packing for {res_travelers}, local transit, or family customs!")
+                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant & Trip Modifier")
+                st.caption(f"Ask follow-up travel questions about {res_destination}, packing for {res_travelers}, or iterate on preferences below to regenerate the plan!")
+
+                with st.expander("✏️ Iterate & Regenerate Loaded Plan", expanded=True):
+                    st.markdown("Want to modify this trip plan for a different persona or duration?")
+                    col_mod1, col_mod2 = st.columns(2)
+                    with col_mod1:
+                        mod_persona_disp = st.selectbox(
+                            "Switch Persona Profile",
+                            options=list(persona_options.keys()),
+                            key="chat_mod_persona_2"
+                        )
+                    with col_mod2:
+                        mod_dates = st.text_input("Adjust Travel Dates / Duration", value=str(res_dates), key="chat_mod_dates_2")
+                    
+                    mod_instructions = st.text_input("Additional Custom Requests", placeholder="e.g. Add 2 days of luxury hot spring ryokans", key="chat_mod_inst_2")
+                    
+                    if st.button("🔄 Apply Preferences & Regenerate Trip Plan", type="primary", use_container_width=True, key="chat_mod_btn_2"):
+                        st.session_state.force_persona = persona_options[mod_persona_disp]
+                        st.session_state.force_dates = mod_dates
+                        if mod_instructions.strip():
+                            st.session_state.force_custom_instructions = mod_instructions
+                        st.info("🔄 Preferences updated! Triggering agent pipeline...")
+                        st.rerun()
+
+                st.markdown("---")
+
                 if "chat_messages" not in st.session_state:
                     st.session_state.chat_messages = []
                 for msg in st.session_state.chat_messages:
