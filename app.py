@@ -730,142 +730,142 @@ elif "current_result" in st.session_state and st.session_state.current_result:
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
     if status == "approved":
-            st.markdown(
-                f'<span class="badge-approved">✅ TRIP PLAN APPROVED for {res_travelers}</span>',
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f'<span class="badge-approved">✅ TRIP PLAN APPROVED for {res_travelers}</span>',
+            unsafe_allow_html=True,
+        )
 
-            tab_itin_map, tab_hotel_food, tab_logistics, tab_chat, tab_advanced = st.tabs([
-                "🗺️ Trip Plan & Map",
-                "🏨 Hotels & Dining",
-                "🛒 Flights & Budget",
-                "💬 Travel Assistant",
-                "⚙️ Under the Hood",
-            ])
+        tab_itin_map, tab_hotel_food, tab_logistics, tab_chat, tab_advanced = st.tabs([
+            "🗺️ Trip Plan & Map",
+            "🏨 Hotels & Dining",
+            "🛒 Flights & Budget",
+            "💬 Travel Assistant",
+            "⚙️ Under the Hood",
+        ])
 
-            with tab_itin_map:
-                st.markdown(result.get("itinerary", "N/A"))
-                st.markdown("---")
-                st.markdown(f"### 📍 Complete Itinerary Map — {res_destination}")
+        with tab_itin_map:
+            st.markdown(result.get("itinerary", "N/A"))
+            st.markdown("---")
+            st.markdown(f"### 📍 Complete Itinerary Map — {res_destination}")
 
-                itinerary_text = result.get("itinerary", "")
-                loc_list = extract_all_itinerary_locations(itinerary_text, res_destination)
-                df_map = pd.DataFrame(loc_list)
+            itinerary_text = result.get("itinerary", "")
+            loc_list = extract_all_itinerary_locations(itinerary_text, res_destination)
+            df_map = pd.DataFrame(loc_list)
 
+            if not df_map.empty:
+                mean_lat = df_map["lat"].mean()
+                mean_lon = df_map["lon"].mean()
+                st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across all itinerary days.")
+
+                view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=11, pitch=35)
+                layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=df_map,
+                    get_position=["lon", "lat"],
+                    get_color="[255, 107, 107, 220]",
+                    get_radius=400,
+                    pickable=True,
+                )
+                deck = pdk.Deck(
+                    layers=[layer],
+                    initial_view_state=view_state,
+                    tooltip={"text": "[{day}] {title}"},
+                )
+                st.pydeck_chart(deck)
+
+                with st.expander("📌 View Extracted Itinerary Locations"):
+                    st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+
+            encoded_dest = urllib.parse.quote(res_destination)
+            col_gmap, col_osm = st.columns(2)
+            with col_osm:
+                st.markdown("#### 🗺️ OpenStreetMap")
                 if not df_map.empty:
-                    mean_lat = df_map["lat"].mean()
-                    mean_lon = df_map["lon"].mean()
-                    st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across all itinerary days.")
+                    osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
+                    st.components.v1.iframe(osm_url, height=300, scrolling=False)
+                    st.markdown(f"[👉 Open on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
 
-                    view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=11, pitch=35)
-                    layer = pdk.Layer(
-                        "ScatterplotLayer",
-                        data=df_map,
-                        get_position=["lon", "lat"],
-                        get_color="[255, 107, 107, 220]",
-                        get_radius=400,
-                        pickable=True,
+            with col_gmap:
+                if gmaps_key:
+                    st.markdown("#### 🗺️ Google Maps")
+                    gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+                    st.components.v1.iframe(gmaps_url, height=300, scrolling=True)
+                st.markdown(f"[👉 Open on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
+
+            st.markdown("---")
+            with st.expander("📊 Day-by-Day Tabular Itinerary"):
+                guide_text = result.get("purchasing_guide", "")
+                df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
+                st.dataframe(df_itin, use_container_width=True)
+
+                import io
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                    df_itin.to_excel(writer, index=False, sheet_name='Itinerary')
+                excel_data = excel_buffer.getvalue()
+
+                st.download_button(
+                    label="📥 Download Itinerary as Excel (.xlsx)",
+                    data=excel_data,
+                    file_name=f"travel_itinerary_{sanitize_filename(res_destination).lower()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
+
+        with tab_hotel_food:
+            st.markdown("### 🏨 Accommodation")
+            st.markdown(result.get("hotel_recommendations", "N/A"))
+            st.markdown("---")
+            st.markdown("### 🍽️ Food & Retail")
+            st.markdown(result.get("food_and_retail", "N/A"))
+
+        with tab_logistics:
+            st.markdown(f"### 🛒 Purchasing & Booking Guide ({res_travelers} • {res_origin} ✈️ {res_destination})")
+            st.markdown(result.get("purchasing_guide", "N/A"))
+            st.markdown("---")
+            st.markdown("### 💰 Budget Breakdown & Currency Converter")
+            st.code(result.get("budget_breakdown", "N/A"), language=None)
+
+        with tab_chat:
+            st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant & Trip Modifier")
+            st.caption(f"Ask follow-up travel questions about {res_destination}, packing for {res_travelers}, or iterate on preferences below to regenerate the plan!")
+
+            with st.expander("✏️ Iterate & Regenerate Loaded Plan", expanded=True):
+                st.markdown("Want to modify this trip plan for a different persona or duration?")
+                col_mod1, col_mod2 = st.columns(2)
+                with col_mod1:
+                    mod_persona_disp = st.selectbox(
+                        "Switch Persona Profile",
+                        options=list(persona_options.keys()),
+                        key="chat_mod_persona_2"
                     )
-                    deck = pdk.Deck(
-                        layers=[layer],
-                        initial_view_state=view_state,
-                        tooltip={"text": "[{day}] {title}"},
-                    )
-                    st.pydeck_chart(deck)
+                with col_mod2:
+                    mod_dates = st.text_input("Adjust Travel Dates / Duration", value=str(res_dates), key="chat_mod_dates_2")
+                
+                mod_instructions = st.text_input("Additional Custom Requests", placeholder="e.g. Add 2 days of luxury hot spring ryokans", key="chat_mod_inst_2")
+                
+                if st.button("🔄 Apply Preferences & Regenerate Trip Plan", type="primary", use_container_width=True, key="chat_mod_btn_2"):
+                    st.session_state.force_persona = persona_options[mod_persona_disp]
+                    st.session_state.force_dates = mod_dates
+                    if mod_instructions.strip():
+                        st.session_state.force_custom_instructions = mod_instructions
+                    st.info("🔄 Preferences updated! Triggering agent pipeline...")
+                    st.rerun()
 
-                    with st.expander("📌 View Extracted Itinerary Locations"):
-                        st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+            st.markdown("---")
 
-                encoded_dest = urllib.parse.quote(res_destination)
-                col_gmap, col_osm = st.columns(2)
-                with col_osm:
-                    st.markdown("#### 🗺️ OpenStreetMap")
-                    if not df_map.empty:
-                        osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
-                        st.components.v1.iframe(osm_url, height=300, scrolling=False)
-                        st.markdown(f"[👉 Open on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
+            if "chat_messages" not in st.session_state:
+                st.session_state.chat_messages = []
+            for msg in st.session_state.chat_messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
 
-                with col_gmap:
-                    if gmaps_key:
-                        st.markdown("#### 🗺️ Google Maps")
-                        gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
-                        st.components.v1.iframe(gmaps_url, height=300, scrolling=True)
-                    st.markdown(f"[👉 Open on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
-
-                st.markdown("---")
-                with st.expander("📊 Day-by-Day Tabular Itinerary"):
-                    guide_text = result.get("purchasing_guide", "")
-                    df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
-                    st.dataframe(df_itin, use_container_width=True)
-
-                    import io
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df_itin.to_excel(writer, index=False, sheet_name='Itinerary')
-                    excel_data = excel_buffer.getvalue()
-
-                    st.download_button(
-                        label="📥 Download Itinerary as Excel (.xlsx)",
-                        data=excel_data,
-                        file_name=f"travel_itinerary_{sanitize_filename(res_destination).lower()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                    )
-
-            with tab_hotel_food:
-                st.markdown("### 🏨 Accommodation")
-                st.markdown(result.get("hotel_recommendations", "N/A"))
-                st.markdown("---")
-                st.markdown("### 🍽️ Food & Retail")
-                st.markdown(result.get("food_and_retail", "N/A"))
-
-            with tab_logistics:
-                st.markdown(f"### 🛒 Purchasing & Booking Guide ({res_travelers} • {res_origin} ✈️ {res_destination})")
-                st.markdown(result.get("purchasing_guide", "N/A"))
-                st.markdown("---")
-                st.markdown("### 💰 Budget Breakdown & Currency Converter")
-                st.code(result.get("budget_breakdown", "N/A"), language=None)
-
-            with tab_chat:
-                st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant & Trip Modifier")
-                st.caption(f"Ask follow-up travel questions about {res_destination}, packing for {res_travelers}, or iterate on preferences below to regenerate the plan!")
-
-                with st.expander("✏️ Iterate & Regenerate Loaded Plan", expanded=True):
-                    st.markdown("Want to modify this trip plan for a different persona or duration?")
-                    col_mod1, col_mod2 = st.columns(2)
-                    with col_mod1:
-                        mod_persona_disp = st.selectbox(
-                            "Switch Persona Profile",
-                            options=list(persona_options.keys()),
-                            key="chat_mod_persona_2"
-                        )
-                    with col_mod2:
-                        mod_dates = st.text_input("Adjust Travel Dates / Duration", value=str(res_dates), key="chat_mod_dates_2")
-                    
-                    mod_instructions = st.text_input("Additional Custom Requests", placeholder="e.g. Add 2 days of luxury hot spring ryokans", key="chat_mod_inst_2")
-                    
-                    if st.button("🔄 Apply Preferences & Regenerate Trip Plan", type="primary", use_container_width=True, key="chat_mod_btn_2"):
-                        st.session_state.force_persona = persona_options[mod_persona_disp]
-                        st.session_state.force_dates = mod_dates
-                        if mod_instructions.strip():
-                            st.session_state.force_custom_instructions = mod_instructions
-                        st.info("🔄 Preferences updated! Triggering agent pipeline...")
-                        st.rerun()
-
-                st.markdown("---")
-
-                if "chat_messages" not in st.session_state:
-                    st.session_state.chat_messages = []
-                for msg in st.session_state.chat_messages:
-                    with st.chat_message(msg["role"]):
-                        st.markdown(msg["content"])
-
-            with tab_advanced:
-                with st.expander("⚖️ Quality Verdict (Agent-as-Judge)"):
-                    st.markdown(result.get("judge_verdict", "N/A"))
-                with st.expander("📜 Session Execution & Troubleshooting Logs"):
-                    logs_content = get_session_logs()
-                    st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+        with tab_advanced:
+            with st.expander("⚖️ Quality Verdict (Agent-as-Judge)"):
+                st.markdown(result.get("judge_verdict", "N/A"))
+            with st.expander("📜 Session Execution & Troubleshooting Logs"):
+                logs_content = get_session_logs()
+                st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
         st.markdown("### 📥 Download Complete Recommendations Report")
