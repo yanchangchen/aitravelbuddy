@@ -11,6 +11,7 @@ import pydeck as pdk
 from datetime import datetime
 
 from core.logger import get_logger, get_session_logs, clear_session_logs
+from core.db import init_db, is_db_ready, save_trip_plan, get_saved_trips, get_trip_plan
 
 logger = get_logger("app")
 
@@ -56,6 +57,11 @@ st.markdown("""
         margin: 12px 0;
         border: 1px solid #E2E8F0;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+    }
+    .result-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     .result-card h3 { color: #FF6B6B; margin-top: 0; }
 
@@ -133,46 +139,15 @@ secret_gemini = get_secret("GOOGLE_API_KEY") or get_secret("GEMINI_API_KEY")
 secret_tavily = get_secret("TAVILY_API_KEY")
 secret_gmaps = get_secret("GOOGLE_MAPS_API_KEY") or get_secret("GMAPS_API_KEY")
 
+
+# Initialize DB
+init_db(get_secret("SUPABASE_URL"), get_secret("SUPABASE_KEY"))
+
 with st.sidebar:
-    st.markdown("## 🔐 API Credentials")
+    gemini_key = secret_gemini
+    tavily_key = secret_tavily
+    gmaps_key = secret_gmaps
 
-    if secret_gemini and secret_tavily:
-        st.success("🔑 API keys loaded from Streamlit Secrets!")
-        gemini_key = secret_gemini
-        tavily_key = secret_tavily
-        gmaps_key = secret_gmaps
-    else:
-        st.info("💡 Enter your API keys below (or set in `.streamlit/secrets.toml`).")
-        gemini_key = st.text_input(
-            "Gemini API Key",
-            value=secret_gemini,
-            type="password",
-            placeholder="AIzaSy...",
-        )
-        tavily_key = st.text_input(
-            "Tavily API Key",
-            value=secret_tavily,
-            type="password",
-            placeholder="tvly-...",
-        )
-        gmaps_key = st.text_input(
-            "Google Maps API Key (Optional)",
-            value=secret_gmaps,
-            type="password",
-            placeholder="AIzaSy... (for Maps Embed API)",
-        )
-
-    with st.expander("ℹ️ How to get a Google Maps API key?"):
-        st.markdown("""
-        1. Open **[Google Cloud Console](https://console.cloud.google.com/)**.
-        2. Create or select a project.
-        3. Go to **APIs & Services > Library** and search for **Maps Embed API**. Click **Enable**.
-        4. Go to **APIs & Services > Credentials** -> Click **+ Create Credentials > API key**.
-        5. Copy your key into the field above or set `GOOGLE_MAPS_API_KEY` in `.streamlit/secrets.toml`.
-        *(If no key is provided, Travel Buddy falls back to interactive OpenStreetMap & Pydeck views).*
-        """)
-
-    st.markdown("---")
     st.markdown("## 👥 Travelers & Group Composition")
     col_a, col_c, col_i = st.columns(3)
     with col_a:
@@ -234,6 +209,7 @@ with st.sidebar:
     st.markdown("### 🎭 Traveler Persona")
     persona_options = {
         "🧑 Solo Traveler": "single",
+        "💼 Business Traveler": "business",
         "💑 Couple's Getaway": "couple",
         "👨‍👩‍👧‍👦 Family Adventure": "family",
         "🎒 Budget Backpacker": "backpacker",
@@ -242,7 +218,7 @@ with st.sidebar:
     persona_display = st.radio(
         "Select Persona",
         options=list(persona_options.keys()),
-        index=2,  # Default Family for 2 adults 1 child
+        index=3,  # Default Family for 2 adults 1 child
     )
     persona = persona_options[persona_display]
 
@@ -413,21 +389,24 @@ if plan_button:
             st.exception(e)
             st.stop()
 
-    try:
-        result = app.invoke(initial_state)
-        logger.info(f"Final state invoked. Result status='{result.get('status')}'")
-    except Exception as e:
-        logger.warning(f"Re-invocation failed: {e}. Reconstructing state from streamed nodes.")
-        result = dict(initial_state)
-        for _, output in completed_nodes:
-            if isinstance(output, dict):
-                result.update(output)
+    result = dict(initial_state)
+    for _, output in completed_nodes:
+        if isinstance(output, dict):
+            result.update(output)
 
     status = result.get("status", "unknown")
     st.session_state.current_result = result
 
     # ── Display Results ───────────────────────────────────────────────────
     with result_container:
+        if is_db_ready() and status == "approved":
+            if st.button("💾 Save Trip to Supabase"):
+                p_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"] if persona != "custom" else "Custom Persona"
+                if save_trip_plan(destination, travelers_summary, p_label, dates, result):
+                    st.success("Trip saved successfully!")
+                else:
+                    st.error("Failed to save trip.")
+
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
         if status == "approved":
@@ -436,27 +415,18 @@ if plan_button:
                 unsafe_allow_html=True,
             )
 
-            tab_itin, tab_booking, tab_map, tab_table, tab_food, tab_hotel, tab_budget, tab_judge, tab_chat, tab_logs = st.tabs([
-                "🗺️ Itinerary",
-                "🛒 Booking Links",
-                "📍 Location Map",
-                "📊 Tabular Itinerary",
-                "🍽️ Food & Retail",
-                "🏨 Accommodation",
-                "💰 Budget Breakdown",
-                "⚖️ Quality Verdict",
-                "💬 Travel Q&A Chat",
-                "📜 Debug Logs",
+            tab_itin_map, tab_hotel_food, tab_logistics, tab_chat, tab_advanced = st.tabs([
+                "🗺️ Trip Plan & Map",
+                "🏨 Hotels & Dining",
+                "🛒 Flights & Budget",
+                "💬 Travel Assistant",
+                "⚙️ Under the Hood",
             ])
 
-            with tab_itin:
+            with tab_itin_map:
                 st.markdown(result.get("itinerary", "N/A"))
-
-            with tab_booking:
-                st.markdown(f"### 🛒 Purchasing & Booking Guide ({travelers_summary} • {origin} ✈️ {destination})")
-                st.markdown(result.get("purchasing_guide", "N/A"))
-
-            with tab_map:
+                
+                st.markdown("---")
                 st.markdown(f"### 📍 Complete Itinerary Map — {destination}")
 
                 itinerary_text = result.get("itinerary", "")
@@ -485,50 +455,51 @@ if plan_button:
                     )
                     st.pydeck_chart(deck)
 
-                    # List of mapped locations table
-                    st.markdown("#### 📌 Extracted Itinerary Locations")
-                    st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+                    with st.expander("📌 View Extracted Itinerary Locations"):
+                        st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
 
                 encoded_dest = urllib.parse.quote(destination)
-                st.markdown("#### 🗺️ Interactive OpenStreetMap View")
-                osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
-                st.components.v1.iframe(osm_url, height=450, scrolling=False)
-
-                if gmaps_key:
-                    st.markdown("#### 🗺️ Google Maps Embed View")
-                    gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
-                    st.components.v1.iframe(gmaps_url, height=450, scrolling=True)
-
-                st.markdown("#### 🔗 Direct Map Navigation Links")
+                
                 col_gmap, col_osm = st.columns(2)
-                with col_gmap:
-                    st.markdown(f"[👉 Open {destination} on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
                 with col_osm:
-                    st.markdown(f"[👉 Open {destination} on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
+                    st.markdown("#### 🗺️ OpenStreetMap")
+                    osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
+                    st.components.v1.iframe(osm_url, height=300, scrolling=False)
+                    st.markdown(f"[👉 Open on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
 
-            with tab_table:
-                st.markdown(f"### 📊 Day-by-Day Tabular Itinerary for {travelers_summary}")
-                itinerary_text = result.get("itinerary", "")
-                guide_text = result.get("purchasing_guide", "")
-                df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
-                st.dataframe(df_itin, use_container_width=True)
+                with col_gmap:
+                    if gmaps_key:
+                        st.markdown("#### 🗺️ Google Maps")
+                        gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+                        st.components.v1.iframe(gmaps_url, height=300, scrolling=True)
+                    st.markdown(f"[👉 Open on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
 
-                csv_data = df_itin.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="📥 Download Itinerary as CSV",
-                    data=csv_data,
-                    file_name=f"travel_itinerary_{sanitize_filename(destination).lower()}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
+                st.markdown("---")
+                with st.expander("📊 Day-by-Day Tabular Itinerary"):
+                    guide_text = result.get("purchasing_guide", "")
+                    df_itin = parse_itinerary_to_dataframe(itinerary_text, guide_text)
+                    st.dataframe(df_itin, use_container_width=True)
 
-            with tab_food:
+                    csv_data = df_itin.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        label="📥 Download Itinerary as CSV",
+                        data=csv_data,
+                        file_name=f"travel_itinerary_{sanitize_filename(destination).lower()}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+
+            with tab_hotel_food:
+                st.markdown("### 🏨 Accommodation")
+                st.markdown(result.get("hotel_recommendations", "N/A"))
+                st.markdown("---")
+                st.markdown("### 🍽️ Food & Retail")
                 st.markdown(result.get("food_and_retail", "N/A"))
 
-            with tab_hotel:
-                st.markdown(result.get("hotel_recommendations", "N/A"))
-
-            with tab_budget:
+            with tab_logistics:
+                st.markdown(f"### 🛒 Purchasing & Booking Guide ({travelers_summary} • {origin} ✈️ {destination})")
+                st.markdown(result.get("purchasing_guide", "N/A"))
+                st.markdown("---")
                 st.markdown("### 💰 Budget Breakdown & Currency Converter")
                 st.code(result.get("budget_breakdown", "N/A"), language=None)
 
@@ -543,9 +514,6 @@ if plan_button:
                     with col_c2:
                         st.metric(label=f"Equivalent in {target_curr.split()[0]}", value=f"{converted:,.2f}")
                         st.caption(f"Estimated rate: 1 SGD = {rate} {target_curr.split()[0]}")
-
-            with tab_judge:
-                st.markdown(result.get("judge_verdict", "N/A"))
 
             with tab_chat:
                 st.markdown("### 💬 Ask Travel Buddy — Q&A Assistant")
@@ -567,11 +535,11 @@ if plan_button:
                     with st.chat_message("assistant"):
                         with st.spinner("Searching & thinking..."):
                             try:
-                                from langchain_core.messages import HumanMessage, SystemMessage
-                                chat_context = f"Origin: {origin}\nDestination: {destination}\nTravelers: {travelers_summary}\nDates: {dates}\nItinerary Context:\n{result.get('itinerary','')[:1000]}"
+                                from langchain_core.messages import HumanMessage
+                                chat_context = f"Origin: {origin}\\nDestination: {destination}\\nTravelers: {travelers_summary}\\nDates: {dates}\\nItinerary Context:\\n{result.get('itinerary','')[:1000]}"
                                 search_res = search_tool.invoke(f"{destination} {user_query}")
-                                search_info = "\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
-                                prompt = f"Context:\n{chat_context}\nWeb Info:\n{search_info}\nUser Question: {user_query}\nAnswer helpfully as a travel expert."
+                                search_info = "\\n".join(r.get('content', '') for r in search_res) if isinstance(search_res, list) else str(search_res)
+                                prompt = f"Context:\\n{chat_context}\\nWeb Info:\\n{search_info}\\nUser Question: {user_query}\\nAnswer helpfully as a travel expert."
                                 answer_resp = llm.invoke([HumanMessage(content=prompt)])
                                 answer_text = answer_resp.content if isinstance(answer_resp.content, str) else str(answer_resp.content)
                                 st.markdown(answer_text)
@@ -579,18 +547,20 @@ if plan_button:
                             except Exception as e:
                                 st.error(f"Failed to generate answer: {e}")
 
-            with tab_logs:
-                st.markdown("### 📜 Session Execution & Troubleshooting Logs")
-                logs_content = get_session_logs()
-                st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
-                st.download_button(
-                    label="📥 Download System Debug Log (.log)",
-                    data=logs_content.encode("utf-8"),
-                    file_name="travel_buddy_debug.log",
-                    mime="text/plain",
-                    use_container_width=True,
-                )
-
+            with tab_advanced:
+                with st.expander("⚖️ Quality Verdict (Agent-as-Judge)"):
+                    st.markdown(result.get("judge_verdict", "N/A"))
+                
+                with st.expander("📜 Session Execution & Troubleshooting Logs"):
+                    logs_content = get_session_logs()
+                    st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+                    st.download_button(
+                        label="📥 Download System Debug Log (.log)",
+                        data=logs_content.encode("utf-8"),
+                        file_name="travel_buddy_debug.log",
+                        mime="text/plain",
+                        use_container_width=True,
+                    )
         elif status == "budget_busted":
             st.markdown(
                 '<span class="badge-busted">🚨 BUDGET COULD NOT BE RECONCILED</span>',
@@ -661,21 +631,5 @@ else:
         """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 🏗️ System Architecture")
-    st.markdown("""
-    ```mermaid
-    graph TD
-        A["START"] --> B["Itinerary Agent (SGD)"]
-        B --> C["Food & Retail Agent (SGD)"]
-        C --> D["Hospitality Agent (SGD)"]
-        D --> E["Purchasing Agent (Group Flights & Rental Links)"]
-        E --> F{"Budget Guardrail"}
-        F -->|"Pass / Flexible"| G["Agent-as-Judge"]
-        F -->|"Retry <= 3"| B
-        F -->|"Busted"| H["Budget Busted"]
-        G --> I["Final Output & Booking Links / CSV Export"]
-        I --> J["END"]
-        H --> J
-    ```
-    """)
-    st.info("👈 **Configure travelers & trip details in the sidebar and click 'Plan My Trip' to start!**")
+    st.markdown("### 🚀 Getting Started")
+    st.info("👈 **Configure travelers, destination & persona in the sidebar and click 'Plan My Trip' to generate your AI-crafted itinerary!**")

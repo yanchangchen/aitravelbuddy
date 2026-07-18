@@ -101,9 +101,17 @@ class DailyItinerary(BaseModel):
 
 ---
 
-## 📜 4. Future Code Modification Directives
+## 📜 4. Persistence Layer (Supabase)
+The application integrates with **Supabase** via `core/db.py` to persist `TravelBuddyState`.
+- **Schema:** The `trip_plans` table stores metadata (destination, persona, travelers, dates) and a `jsonb` column for the complete `state_data`.
+- **Bypass Mechanism:** Loading a saved trip bypasses the LangGraph pipeline entirely and directly hydrates `st.session_state.current_result` from the database.
+
+---
+
+## 📜 5. Future Code Modification Directives
 Whenever modifying or expanding the codebase in future turns:
 1. Maintain Light Mode aesthetic tokens in `app.py` and `.streamlit/config.toml`.
 2. Keep `TravelBuddyState` schema backwards compatible.
 3. Always validate Python syntax AST before committing code changes.
 4. Ensure all external booking URLs use HTTPS markdown link format.
+5. **DO NOT** re-invoke `app.invoke()` after `app.stream()`. The UI depends on state reconstruction directly from the streamed nodes to prevent silent double-generation delays.

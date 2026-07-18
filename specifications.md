@@ -1,7 +1,7 @@
 # Travel Buddy — System Specifications & Architecture
 
 ## 1. Overview
-**Travel Buddy** is an advanced multi-agent travel planning system built with **LangGraph** and **Google Gemini** (`gemini-3.1-flash-lite`). It orchestrates four specialized planning agents to create persona-aware 5-day travel itineraries backed by real-time web research via Tavily. The system features a dual-layer evaluation engine combining deterministic Python budget guardrails in **Singapore Dollars (SGD / S$)** (including airfare for custom group compositions, accommodation, dining, sightseeing, and optional self-drive car rentals) with a cognitive LLM-as-a-Judge quality check, custom persona builders, purchasing agents with direct booking links, interactive Google Maps & Pydeck multi-venue location visualizers in a clean **Light Mode UI**, and a follow-up Q&A Chat Assistant.
+**Travel Buddy** is an advanced multi-agent travel planning system built with **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), and **Supabase**. It orchestrates four specialized planning agents to create persona-aware travel itineraries backed by real-time web research via Tavily. The system features a dual-layer evaluation engine combining deterministic Python budget guardrails in **Singapore Dollars (SGD / S$)** (including airfare for custom group compositions, accommodation, dining, sightseeing, and optional self-drive car rentals) with a cognitive LLM-as-a-Judge quality check, custom persona builders, purchasing agents with direct booking links, interactive Google Maps & Pydeck multi-venue location visualizers in a clean **Light Mode UI**, a follow-up Q&A Chat Assistant, and persistent trip-saving capabilities via Supabase.
 
 ---
 
@@ -10,6 +10,7 @@
 - **LLM Layer:** `ChatGoogleGenerativeAI` (`gemini-3.1-flash-lite`).
 - **Search Tooling:** `TavilySearchResults` bound directly to planning nodes, purchasing agents, and chat assistant.
 - **Maps Grounding:** Pydeck 3D multi-pin scatterplot maps, OpenStreetMap, & Google Maps Embed API.
+- **Persistence Layer:** Supabase via `core/db.py` to save/load full JSON state records.
 - **Frontend / Deployment:** Streamlit application (`app.py`) in Light Mode theme with native `st.secrets` integration.
 
 ---
@@ -59,7 +60,8 @@ The system consists of four specialized generation nodes and a dual-layer evalua
 2. **Couple's Getaway (`couple`):** Medium tempo (2-4 activities/day), relaxed mornings (>9:30 AM), aesthetic/romantic dining, boutique lodging, wraps up by 10:30 PM.
 3. **Family Adventure (`family`):** Low tempo (2-3 activities/day), stroller-accessible, early nights (<7:30 PM), kid-friendly dining & playgrounds.
 4. **Budget Backpacker (`backpacker`):** Ultra-lean spending, free/cheap sights, night markets, public transport/walking, social hostels, money-saving tips.
-5. **Custom Persona (`custom`):** User-defined persona title, tempo, mobility preference, dining style, accommodation preference, and custom constraint rules.
+5. **Business Traveler (`business`):** Built for working professionals. Zero daytime activities. Focuses exclusively on high-convenience transit, early morning coffee, and high-end evening dining/networking near the hotel.
+6. **Custom Persona (`custom`):** User-defined persona title, tempo, mobility preference, dining style, accommodation preference, and custom constraint rules.
 
 ---
 
@@ -67,7 +69,9 @@ The system consists of four specialized generation nodes and a dual-layer evalua
 
 - **Full Itinerary Location Mapping:** `extract_all_itinerary_locations` parses all day-by-day sightseeing venues, geocodes their coordinates via Nominatim, and plots interactive pins for every single itinerary attraction on a Pydeck 3D map with day tooltips.
 - **Light Mode Aesthetics:** Clean white background, slate sidebar, soft grey containers, dark text typography.
+- **Consolidated 5-Tab Layout:** Trip Plan & Map, Hotels & Dining, Flights & Budget, Travel Assistant, and Under the Hood.
 - **Purchasing Guide:** Direct HTTPS booking links for flights, accommodations, car rentals, and attraction tickets curated by the specialized purchasing agent.
+- **Saved Trips Database:** Integrated with Supabase, allowing users to save and directly hydrate previous trip itineraries instantly, bypassing LLM agent pipelines.
 - **Google Maps & OpenStreetMap:** Embedded interactive maps for destination attractions with step-by-step API key setup guide.
 - **Tabular Itinerary:** Parses raw Markdown itinerary and purchasing data into a structured Pandas DataFrame (`Day`, `Theme`, `Time Slot`, `Activity Details`, `Est. Cost (SGD)`).
 - **Travel Q&A Assistant:** Interactive chatbot tab using Gemini + Tavily search for follow-up questions, packing advice, and local travel tips.

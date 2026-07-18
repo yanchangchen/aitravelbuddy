@@ -37,40 +37,41 @@ Travel Buddy is designed to make complex, multi-agent travel planning effortless
 | 🌍 Travel Buddy — AI Multi-Agent Travel Planner                                  |
 +------------------------------------+----------------------------------------------+
 | SIDEBAR (Trip Controls)            | MAIN WORKSPACE                               |
-| 🔐 API Credentials                 | 🔄 Agent Pipeline Live Progress Status       |
+| 💾 Saved Trips (Supabase)          | 🔄 Agent Pipeline Live Progress Status       |
 | 👥 Group Composition (Adults/Kids) | -------------------------------------------- |
-| ✈️ Origin & Destination            | TABBED RESULTS DISPLAY:                      |
-| 🚗 Self-Drive Option Checkbox      |  [🗺️ Itinerary] [🛒 Booking Links]            |
-| 💰 Infinite Budget / SGD Input     |  [📍 Location Map] [📊 Tabular Itinerary]     |
-| 📅 Travel Dates (Default 5 Days)   |  [🍽️ Food & Retail] [🏨 Accommodation]       |
-| 🎭 Persona Selector + Custom Maker |  [💰 Budget] [⚖️ Quality] [💬 Q&A Chat]      |
-| ---------------------------------- | -------------------------------------------- |
-| 🚀 [Plan My Trip] Primary Button   | 📥 Download CSV / Text Report / Debug Logs   |
+| ✈️ Origin & Destination            | CONSOLIDATED TABBED RESULTS:                 |
+| 🚗 Self-Drive Option Checkbox      |  [🗺️ Trip Plan & Map] [🏨 Hotels & Dining]   |
+| 💰 Infinite Budget / SGD Input     |  [🛒 Flights & Budget] [💬 Travel Assistant] |
+| 📅 Travel Dates (Default 5 Days)   |  [⚙️ Under the Hood]                         |
+| 🎭 Persona Selector + Custom Maker | -------------------------------------------- |
+| ---------------------------------- | 💾 Save Trip to Supabase                     |
+| 🚀 [Plan My Trip] Primary Button   | 📥 Download CSV / Text Report                |
 +------------------------------------+----------------------------------------------+
 ```
 
 ### 3.1 Progressive Disclosure Pattern
-- **Step 1 (Setup):** Sidebar groups inputs logically (API Keys -> Group Composition -> Destination & Dates -> Persona).
+- **Step 1 (Setup):** Sidebar logically groups demographic and travel inputs. Technical API keys have been removed from the UI entirely to maintain a premium consumer feel.
 - **Step 2 (Execution Feedback):** Live progress bar with animated status text showing node transitions in real time.
-- **Step 3 (Multimodal Results):** Organized tabs prevent cognitive overload by separating Itineraries, Maps, Booking Links, Data Tables, and Chat.
+- **Step 3 (Multimodal Results):** Consolidating 10 legacy tabs into 5 logical categories prevents cognitive overload while providing deep context (e.g., Maps and Text Itineraries live together).
+- **Step 4 (Persistence):** Users can save generated trips to Supabase and retrieve them later directly from the sidebar.
 
 ---
 
 ## 🗺️ 4. Interactive UX Components
 
-1. **Multi-Layer Location Maps (`📍 Location Map`):**
+1. **Consolidated Map & Itinerary (`🗺️ Trip Plan & Map`):**
    - **Pydeck 3D Scatterplot:** Interactive 3D pins for ALL day-by-day itinerary venues with day-coded tooltips.
-   - **OpenStreetMap Embed:** Guaranteed fallback iframe working across all browsers without API keys.
-   - **Google Maps Integration:** Direct navigation buttons for Google Maps & OpenStreetMap.
+   - **OpenStreetMap Embed:** Guaranteed fallback iframe working across all browsers.
+   - **Text Itinerary:** Markdown display of the detailed day-by-day sightseeing plan seamlessly scrolling alongside the map.
 
-2. **Purchasing & Booking Hub (`🛒 Booking Links`):**
-   - Direct, clickable HTTPS links for round-trip flights (from origin city), hotels, car rentals, and attraction tickets curated by the specialized Purchasing Agent.
+2. **Purchasing & Budget Hub (`🛒 Flights & Budget`):**
+   - Direct, clickable HTTPS links for round-trip flights, car rentals, and attraction tickets curated by the specialized Purchasing Agent.
+   - Live budget breakdown tables showing allocation across categories.
 
-3. **Tabular Data Export (`📊 Tabular Itinerary`):**
-   - Clean Pandas DataFrame displaying Day, Theme, Time Slot, Activity Details, and Estimated Costs (SGD).
-   - One-click **Download CSV** button for spreadsheet integration.
+3. **Micro-interactions:**
+   - **Hover States:** Feature `.result-card` containers gently transform upward and cast a soft drop-shadow when hovered over, providing a responsive and modern tactile feel.
 
-4. **Conversational Assistant (`💬 Travel Q&A Chat`):**
+4. **Conversational Assistant (`💬 Travel Assistant`):**
    - Built-in chat interface for asking destination advice, packing tips, or local customs recommendations.
 
 ---

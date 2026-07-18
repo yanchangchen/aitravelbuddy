@@ -5,24 +5,22 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange)](https://github.com/langchain-ai/langgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, and **Google Gemini** (`gemini-3.1-flash-lite`). It coordinates four specialized AI agents to generate personalized 5-day travel itineraries, dining recommendations, hotel options, round-trip airfare estimates from origin cities for group compositions (Adults, Children, Infants), self-drive car rental options in **Singapore Dollars (SGD / S$)** (with infinite budget by default), custom persona builders, purchasing agents with direct booking links, **full itinerary location mapping** in a sleek **Light Mode UI**, and an interactive Q&A Chat Assistant.
+**Travel Buddy** is a production-grade, multi-agent travel planning web application built with **Streamlit**, **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), and **Supabase**. It coordinates four specialized AI agents to generate personalized travel itineraries, dining recommendations, hotel options, and round-trip airfare estimates. It features infinite budget default modes, custom persona builders, direct booking links, full itinerary location mapping, an interactive Q&A Chat Assistant, and Supabase integration to save and load past trips.
 
 ---
 
 ## 🌟 Key Features
 
+- 💾 **Supabase Integration:** Save generated trip plans directly to a cloud database and instantly load them later, bypassing the LLM pipeline.
 - ☀️ **Clean Light Mode UI:** Vibrant light theme (`#FFFFFF` background, `#F8FAFC` slate sidebar, `#0F172A` high-contrast typography).
 - 📍 **Full Itinerary Location Mapping:** Automatically extracts and geocodes ALL day-by-day sightseeing venues, plotting interactive 3D pins for every activity on Pydeck & OpenStreetMap.
 - 👥 **Group Composition Controls:** Customizable Adults (default: 2), Children >2 yrs (default: 1), and Infants <2 yrs (default: 0).
-- 🔑 **Google Maps API Key Validated:** Streamlit secrets & sidebar key inputs fully compatible with Google Maps Embed API.
-- 🛒 **Purchasing & Booking Agent:** Dedicated expert agent sourcing real flight prices, car rental rates, and generating direct clickable HTTPS booking links for flights, hotels, car rentals, and attraction tickets.
-- ✈️ **Airfare & Source City Support:** Calculates round-trip flight costs from origin city (e.g. Singapore) to target destination.
+- 🛒 **Purchasing & Booking Agent:** Dedicated expert agent sourcing real flight prices, car rental rates, and generating direct clickable HTTPS booking links.
 - 🚗 **Self-Drive Option (Car Rental):** Toggle self-drive mode to include car rental rates, fuel, and toll estimates in the trip budget.
-- 🇸🇬 **Default SGD Currency (S$) & 5-Day Default:** Calculates all itinerary, dining, hotel, airfare, and car rental costs in Singapore Dollars for 5-day trips.
 - ♾️ **Flexible / No-Budget Default:** Unlimited budget mode active by default to focus on optimal experiences.
-- 🛠️ **Custom Persona Builder:** Select from 4 built-in personas or define your own custom persona rules, tempo, mobility, dining, and lodging preferences.
+- 🛠️ **Custom Persona Builder:** Select from 5 built-in personas (including the new **Business Traveler**) or define your own custom persona rules.
 - 💬 **Travel Assistant Q&A Chat:** Interactive follow-up chatbot tab using Gemini + Tavily search for packing tips, local advice, and travel questions.
-- 📊 **Tabular Itinerary & CSV Export:** Displays itineraries as structured data tables (including flight and car rental rows) and enables one-click **CSV**, **Full Text (.txt)**, and **Debug Log (.log)** downloads.
+- 📑 **Consolidated 5-Tab Interface:** Streamlined post-generation UX featuring "Trip Plan & Map", "Hotels & Dining", "Flights & Budget", "Travel Assistant", and "Under the Hood".
 - 🤖 **4 Collaborative Agents:** Sequential generation pipeline with specialized agents for Sightseeing, Food & Retail, Hospitality, and Purchasing.
 
 ---
