@@ -28,7 +28,7 @@ def build_graph(llm, search_tool):
     workflow.add_node("purchasing_agent", agents.purchasing_agent)
     workflow.add_node("budget_guardrail", evaluation.budget_guardrail)
     workflow.add_node("agent_as_judge", evaluation.agent_as_judge)
-    workflow.add_node("budget_busted_fallback", evaluation.budget_busted_fallback)
+    workflow.add_node("terminal_fallback", evaluation.terminal_fallback)
     workflow.add_node("final_output", evaluation.final_output)
 
     workflow.add_edge(START, "itinerary_agent")
@@ -44,8 +44,8 @@ def build_graph(llm, search_tool):
             logger.info("   -> Routing to 'agent_as_judge'")
             return "agent_as_judge"
         elif status == "budget_busted":
-            logger.info("   -> Routing to 'budget_busted_fallback'")
-            return "budget_busted_fallback"
+            logger.info("   -> Routing to 'terminal_fallback'")
+            return "terminal_fallback"
         else:
             logger.info("   -> Routing back to 'itinerary_agent' (Retry loop)")
             return "itinerary_agent"
@@ -56,13 +56,30 @@ def build_graph(llm, search_tool):
         {
             "agent_as_judge": "agent_as_judge",
             "itinerary_agent": "itinerary_agent",
-            "budget_busted_fallback": "budget_busted_fallback",
+            "terminal_fallback": "terminal_fallback",
         },
     )
 
-    workflow.add_edge("agent_as_judge", "final_output")
+    def route_after_quality_check(state):
+        status = state.get("status", "approved")
+        if status == "approved":
+            return "final_output"
+        elif status == "quality_failed":
+            return "terminal_fallback"
+        else:
+            return "itinerary_agent"
+
+    workflow.add_conditional_edges(
+        "agent_as_judge",
+        route_after_quality_check,
+        {
+            "final_output": "final_output",
+            "terminal_fallback": "terminal_fallback",
+            "itinerary_agent": "itinerary_agent",
+        },
+    )
     workflow.add_edge("final_output", END)
-    workflow.add_edge("budget_busted_fallback", END)
+    workflow.add_edge("terminal_fallback", END)
 
     compiled_app = workflow.compile()
     logger.info("StateGraph compiled successfully with 8 nodes including purchasing_agent.")

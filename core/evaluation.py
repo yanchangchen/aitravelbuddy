@@ -161,19 +161,47 @@ def agent_as_judge(state: dict) -> dict:
     logger.debug("[Agent-as-Judge] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
     verdict_text = ensure_str(response.content)
-    logger.info(f"[Agent-as-Judge] Evaluation complete ({len(verdict_text)} chars).")
-    return {"judge_verdict": verdict_text, "status": "approved"}
+    
+    import re
+    score_match = re.search(r"SCORE:\s*(\d+)", verdict_text)
+    score = int(score_match.group(1)) if score_match else 10
+    
+    attempts = state.get("budget_attempts", 0)
+    
+    logger.info(f"[Agent-as-Judge] Evaluation complete ({len(verdict_text)} chars). Score: {score}/10")
+    
+    if score >= 6:
+        return {"judge_verdict": verdict_text, "status": "approved"}
+    else:
+        new_attempts = attempts + 1
+        critique = f"Attempt {new_attempts}: Quality Score was {score}/10 (Below Average). You MUST improve adherence to persona rules: {verdict_text}"
+        if new_attempts >= 3:
+            logger.error("[Agent-as-Judge] STRIKE THREE on Quality. Routing to terminal fallback.")
+            return {
+                "judge_verdict": verdict_text,
+                "budget_attempts": new_attempts,
+                "critique_history": [critique],
+                "status": "quality_failed"
+            }
+        else:
+            logger.warning(f"[Agent-as-Judge] Quality failed attempt {new_attempts}/3. Routing back to planning.")
+            return {
+                "judge_verdict": verdict_text,
+                "budget_attempts": new_attempts,
+                "critique_history": [critique],
+                "status": "planning"
+            }
 
 
-def budget_busted_fallback(state: dict) -> dict:
-    """Terminal fallback when budget cannot be reconciled after 3 attempts."""
-    logger.error(f"[Budget Busted Fallback] Handling terminal failure for destination='{state['destination']}'")
+def terminal_fallback(state: dict) -> dict:
+    """Terminal fallback when budget or quality cannot be reconciled after 3 attempts."""
+    logger.error(f"[Terminal Fallback] Handling terminal failure for destination='{state['destination']}'")
     history = state.get("critique_history", [])
     history_text = "\n".join(f"  - {c}" for c in history)
     budget_sgd = state.get("budget", 0.0)
 
     notice = (
-        f"BUDGET RECONCILIATION FAILED\n"
+        f"PLANNING RECONCILIATION FAILED\n"
         f"{'=' * 50}\n"
         f"Origin: {state.get('origin', 'Singapore')}\n"
         f"Destination: {state['destination']}\n"
@@ -181,11 +209,11 @@ def budget_busted_fallback(state: dict) -> dict:
         f"Dates: {state['dates']}\n"
         f"Persona: {state['persona']}\n\n"
         f"The system attempted 3 rounds of planning but could not\n"
-        f"produce a plan within the 80-90% budget safety buffer.\n\n"
+        f"produce a plan meeting the budget and quality constraints.\n\n"
         f"Attempt History:\n{history_text}\n\n"
-        f"RECOMMENDATION: Increase budget, select 'No budget limit', reduce days, or choose a cheaper destination."
+        f"RECOMMENDATION: Increase budget, select 'No budget limit', reduce days, choose a cheaper destination, or relax custom persona rules."
     )
-    return {"status": "budget_busted", "budget_breakdown": notice}
+    return {"status": "failed", "budget_breakdown": notice}
 
 
 def final_output(state: dict) -> dict:

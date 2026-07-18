@@ -317,7 +317,7 @@ if plan_button:
             st.error(f"❌ Failed to initialize graph: {e}")
             st.stop()
 
-    st.success(f"✅ 4 Agents initialized for {travelers_summary}. Starting 5-day planning & purchasing execution...")
+    st.success(f"✅ 4 Agents initialized for {travelers_summary}. Starting planning for {dates}...")
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
     initial_state = {
@@ -379,6 +379,20 @@ if plan_button:
                             st.error(f"🚨 Budget busted after {attempt} attempts")
                         else:
                             st.warning(f"🔄 Budget attempt {attempt}/3 failed — retrying...")
+                            total_expected += 5
+
+                    if node_name == "agent_as_judge" and isinstance(node_output, dict):
+                        verdict = node_output.get("judge_verdict", "")
+                        status_val = node_output.get("status", "")
+                        import re
+                        score_match = re.search(r"SCORE:\s*(\d+)", verdict)
+                        score = int(score_match.group(1)) if score_match else 0
+                        if status_val == "approved":
+                            st.success(f"✅ Quality validation passed! Score: {score}/10")
+                        elif status_val == "quality_failed":
+                            st.error(f"🚨 Quality rejected (Score: {score}/10). Attempts exhausted.")
+                        else:
+                            st.warning(f"🔄 Quality below average (Score: {score}/10) — retrying...")
                             total_expected += 5
 
             progress_bar.progress(1.0)
