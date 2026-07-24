@@ -134,7 +134,10 @@ def agent_as_judge(state: dict) -> dict:
     """Cognitive quality evaluation using a separate LLM call."""
     logger.info(f"[Agent-as-Judge] Starting persona compliance check for persona='{state['persona']}'")
     persona_key = state["persona"].lower().strip()
-    profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["couple"])
+    if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
+        profile = state["custom_persona_profile"]
+    else:
+        profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["family"])
 
     num_days = state.get("num_days", 5)
 
@@ -144,8 +147,8 @@ def agent_as_judge(state: dict) -> dict:
         f"You must be STRICT. Any rule violation or missing days results in a FAIL.\n\n"
         f"## TRIP LENGTH REQUIREMENT:\n"
         f"The itinerary MUST explicitly cover exactly {num_days} days (Day 1 through Day {num_days}). If it plans fewer or more than {num_days} days, fail the evaluation.\n\n"
-        f"## PERSONA: {profile['label']}\n"
-        f"## MANDATORY RULES:\n{profile['rules']}\n\n"
+        f"## PERSONA: {profile.get('label', 'Custom Persona')}\n"
+        f"## MANDATORY RULES:\n{profile.get('rules', 'Follow traveler preferences.')}\n\n"
         f"## TRAVEL PLAN TO EVALUATE:\n\n"
         f"### Itinerary:\n{state.get('itinerary', 'N/A')}\n\n"
         f"### Food & Retail:\n{state.get('food_and_retail', 'N/A')}\n\n"
@@ -166,14 +169,14 @@ def agent_as_judge(state: dict) -> dict:
     logger.debug("[Agent-as-Judge] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
     verdict_text = ensure_str(response.content)
-    
+
     import re
     score_match = re.search(r"SCORE:\s*(\d+)", verdict_text)
     score = int(score_match.group(1)) if score_match else 10
-    
+
     attempts = state.get("budget_attempts", 0)
-    
-    logger.info(f"[Agent-as-Judge] Evaluation complete ({len(verdict_text)} chars). Score: {score}/10")
+
+    logger.info(f"[Agent-as-Judge Output] ({len(verdict_text)} chars, Score: {score}/10):\n{verdict_text}")
     
     if score >= 6:
         return {"judge_verdict": verdict_text, "status": "approved"}

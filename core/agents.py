@@ -113,7 +113,7 @@ def itinerary_agent(state: dict) -> dict:
     )
 
     result_text = _invoke_llm_with_retry(prompt)
-    logger.info(f"[Itinerary Agent] Generated itinerary ({len(result_text)} chars).")
+    logger.info(f"[Itinerary Agent Output] ({len(result_text)} chars):\n{result_text}")
 
     return {"itinerary": result_text, "status": "planning"}
 
@@ -125,13 +125,17 @@ def food_retail_agent(state: dict) -> dict:
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
     critique_ctx = get_critique_context(state)
     persona_key = state["persona"].lower().strip()
-    profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["couple"])
+    if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
+        profile = state["custom_persona_profile"]
+    else:
+        profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["family"])
+
     currency = state.get("currency", "SGD")
     no_budget = state.get("no_budget", False)
     budget_line = "FLEXIBLE / UNLIMITED BUDGET (Focus on best dining)" if no_budget else f"TOTAL TRIP BUDGET: S$ {state['budget']:.2f} {currency}\nBUDGET ALLOCATION FOR FOOD & RETAIL: Approximately 25-30% of total budget"
 
     search_context = _search(
-        f"best {profile['dining_style']} restaurants in {destination}"
+        f"best {profile.get('dining_style', 'local food')} restaurants in {destination}"
     )
 
     prompt = (
@@ -159,7 +163,7 @@ def food_retail_agent(state: dict) -> dict:
     )
 
     result_text = _invoke_llm_with_retry(prompt)
-    logger.info(f"[Food & Retail Agent] Generated dining plan ({len(result_text)} chars).")
+    logger.info(f"[Food & Retail Agent Output] ({len(result_text)} chars):\n{result_text}")
 
     return {"food_and_retail": result_text}
 
@@ -171,13 +175,17 @@ def hospitality_agent(state: dict) -> dict:
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
     critique_ctx = get_critique_context(state)
     persona_key = state["persona"].lower().strip()
-    profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["couple"])
+    if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
+        profile = state["custom_persona_profile"]
+    else:
+        profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["family"])
+
     currency = state.get("currency", "SGD")
     no_budget = state.get("no_budget", False)
     budget_line = "FLEXIBLE / UNLIMITED BUDGET (Focus on best lodging)" if no_budget else f"TOTAL TRIP BUDGET: S$ {state['budget']:.2f} {currency}\nBUDGET ALLOCATION FOR ACCOMMODATION: Approximately 30-35% of total budget"
 
     search_context = _search(
-        f"best {profile['accommodation']} in {destination} {state['dates']}"
+        f"best {profile.get('accommodation', 'hotels')} in {destination} {state['dates']}"
     )
 
     prompt = (
@@ -211,7 +219,7 @@ def hospitality_agent(state: dict) -> dict:
     )
 
     result_text = _invoke_llm_with_retry(prompt)
-    logger.info(f"[Hospitality Agent] Generated hotel recommendations ({len(result_text)} chars).")
+    logger.info(f"[Hospitality Agent Output] ({len(result_text)} chars):\n{result_text}")
 
     return {"hotel_recommendations": result_text}
 
@@ -274,6 +282,6 @@ def purchasing_agent(state: dict) -> dict:
     )
 
     result_text = _invoke_llm_with_retry(prompt)
-    logger.info(f"[Purchasing Agent] Generated purchasing guide ({len(result_text)} chars).")
+    logger.info(f"[Purchasing Agent Output] ({len(result_text)} chars):\n{result_text}")
 
     return {"purchasing_guide": result_text}
