@@ -1,73 +1,106 @@
-"""Sidebar setup component for Travel Buddy Streamlit UI."""
+"""Sidebar UI component for Travel Buddy.
+
+Strictly separates:
+1. Trip Logistics (Trip-Specific & Independent: Destination, Origin, Dates, Group, Self-Drive, Budget)
+2. Traveler Persona & Style (Personality & Vibe Suggestions: Pace, Dining, Lodging, Rules)
+"""
 
 import json
 import streamlit as st
 from datetime import date, timedelta
-from core.db import is_db_ready, get_saved_trips, get_trip_plan
+from core.db import save_trip_plan, get_saved_trips, get_trip_plan
 from core.profile import save_user_profile
 from core.surprise import get_seasonal_surprise
 
 
-def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
-    """Render streamlined setup sidebar and return user inputs dictionary."""
+def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
+    """Render the setup sidebar and return explicit user input state dict."""
     with st.sidebar:
-        gemini_key = secret_gemini
-        tavily_key = secret_tavily
-        gmaps_key = secret_gmaps
+        st.markdown("# ⚙️ Planning Studio")
+        st.caption("Trip Logistics & Traveler Persona Preferences")
 
-        st.markdown("## 🎲 Inspiration & Past Trips")
-        col_surp, col_load = st.columns([1.2, 1])
-        with col_surp:
-            if st.button("🎲 Surprise Me!", use_container_width=True, type="secondary", help="Auto-generate a trending seasonal trip pick!"):
-                surprise = get_seasonal_surprise()
-                st.session_state.surprise_pick = surprise
-                st.toast(f"🎲 Surprise Pick: {surprise['title']}!\n{surprise['reason']}")
-                st.rerun()
+        # ── API Key Collapsible Management ─────────────────────────────────────
+        with st.expander("🔑 API Key Status", expanded=False):
+            if gemini_key:
+                st.success("✅ Gemini API Key detected")
+            else:
+                gemini_key = st.text_input("Gemini API Key", type="password", help="Required for multi-agent execution")
 
-        if is_db_ready():
+            if tavily_key:
+                st.success("✅ Tavily API Key detected")
+            else:
+                tavily_key = st.text_input("Tavily API Key", type="password", help="Required for live search deals")
+
+            if gmaps_key:
+                st.success("✅ Google Maps API Key detected")
+            else:
+                gmaps_key = st.text_input("Google Maps API Key (Optional)", type="password")
+
+        # ── Saved Trips & Import Section ─────────────────────────────────────
+        with st.expander("💾 Saved Trips & State Import", expanded=False):
             saved_trips = get_saved_trips()
             if saved_trips:
-                trip_options = {
-                    f"{t.get('destination', 'Trip')} ({t.get('persona', 'Plan')}) - {t.get('dates', '')}": t.get("id")
-                    for t in saved_trips
-                }
-                selected_trip_label = st.selectbox("Select Saved Trip", options=list(trip_options.keys()))
-                if st.button("📂 Load Selected Plan", use_container_width=True):
-                    trip_id = trip_options[selected_trip_label]
-                    loaded_state = get_trip_plan(trip_id)
-                    if loaded_state:
-                        st.session_state.current_result = loaded_state
-                        st.success("Loaded trip from storage!")
+                trip_labels = [f"{t['destination']} ({t['dates']})" for t in saved_trips]
+                selected_label = st.selectbox("Load Saved Trip", options=trip_labels)
+                if st.button("📥 Load Trip State", use_container_width=True):
+                    idx = trip_labels.index(selected_label)
+                    trip_id = saved_trips[idx]["id"]
+                    loaded_data = get_trip_plan(trip_id)
+                    if loaded_data:
+                        st.session_state.current_result = loaded_data
+                        st.toast("✅ Loaded trip from storage!")
                         st.rerun()
                     else:
                         st.error("Failed to load plan.")
 
-        uploaded_state_file = st.file_uploader("📤 Import Agent State (.json)", type=["json"], key="sidebar_import_state")
-        if uploaded_state_file is not None:
-            try:
-                import_data = json.load(uploaded_state_file)
-                if isinstance(import_data, dict) and ("itinerary" in import_data or "destination" in import_data):
-                    st.session_state.current_result = import_data
-                    st.toast("✅ Agent run state imported successfully!")
-                    st.rerun()
-                else:
-                    st.error("Invalid agent state JSON file format.")
-            except Exception as e:
-                st.error(f"Failed to import agent state: {e}")
+            uploaded_state_file = st.file_uploader("📤 Import Agent State (.json)", type=["json"], key="sidebar_import_state")
+            if uploaded_state_file is not None:
+                try:
+                    import_data = json.load(uploaded_state_file)
+                    if isinstance(import_data, dict) and ("itinerary" in import_data or "destination" in import_data):
+                        st.session_state.current_result = import_data
+                        st.toast("✅ Agent run state imported successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid agent state JSON file format.")
+                except Exception as e:
+                    st.error(f"Failed to import agent state: {e}")
+
         st.markdown("---")
 
-        # Check if a Surprise Pick was triggered
+        # ── Check if a Surprise Pick was triggered ───────────────────────────
         surprise_data = st.session_state.pop("surprise_pick", None)
         if surprise_data:
             st.session_state.active_surprise_banner = surprise_data
+            # Set state defaults when user explicitly triggers a surprise pick
+            st.session_state.trip_destination = surprise_data["destination"]
+            st.session_state.trip_origin = surprise_data["origin"]
 
-        st.markdown("## 📍 1. Destination & Logistics")
+        # Ensure session_state keys exist for Trip Logistics
+        if "trip_destination" not in st.session_state:
+            st.session_state.trip_destination = "Tokyo, Japan"
+        if "trip_origin" not in st.session_state:
+            st.session_state.trip_origin = "Singapore"
 
-        default_origin = surprise_data["origin"] if surprise_data else "Singapore"
-        default_dest = surprise_data["destination"] if surprise_data else "Tokyo, Japan"
+        # ── CARD 1: TRIP LOGISTICS (TRIP-SPECIFIC & INDEPENDENT) ─────────────
+        st.markdown("## 📍 1. Trip Logistics")
+        st.caption("🔒 *Trip-Specific Details (Fixed per trip & independent of persona)*")
 
-        origin = st.text_input("Source City (Origin)", value=default_origin, placeholder="e.g. Singapore")
-        destination = st.text_input("Destination City/Country", value=default_dest, placeholder="e.g. Tokyo, Japan")
+        origin = st.text_input(
+            "Source City (Origin)",
+            value=st.session_state.trip_destination if False else st.session_state.trip_origin,
+            key="input_origin_text",
+            placeholder="e.g. Singapore",
+        )
+        st.session_state.trip_origin = origin
+
+        destination = st.text_input(
+            "Destination City/Country",
+            value=st.session_state.trip_destination,
+            key="input_destination_text",
+            placeholder="e.g. Tokyo, Japan",
+        )
+        st.session_state.trip_destination = destination
 
         st.markdown("##### 👥 Group Composition")
         col_a, col_c, col_i = st.columns(3)
@@ -110,8 +143,20 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
         st.caption(f"📅 Duration: **{num_days} Day{'s' if num_days > 1 else ''}** ({dates_str})")
         dates = dates_str
 
+        # Logistics specifics: Self-drive & Budget
+        self_drive = st.checkbox("Self-Drive (Include Car Rental & Tolls)", value=surprise_data["self_drive"] if surprise_data else False)
+        no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
+
+        if not no_budget:
+            budget = st.number_input("Budget in SGD (S$)", min_value=100.0, value=3000.0, step=100.0, format="%.2f")
+        else:
+            budget = 0.0
+
         st.markdown("---")
+
+        # ── CARD 2: PERSONA & AGENT DIRECTIVES (PERSONALITY & STYLE ONLY) ─────
         st.markdown("## 🎭 2. Persona & Agent Directives")
+        st.caption("💡 *Personality Suggestions & Vibe (Applies to your selected destination)*")
 
         saved_prof = st.session_state.user_profile.get("saved_persona", {})
         saved_label = saved_prof.get("label", "⭐ Saved Persona")
@@ -134,22 +179,19 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
                     default_persona_idx = idx
                     break
 
-        persona_display = st.radio("Select Persona Profile", options=list(persona_options.keys()), index=default_persona_idx)
+        persona_display = st.radio(
+            "Select Persona Profile",
+            options=list(persona_options.keys()),
+            index=default_persona_idx,
+            help="Selecting a persona updates dining, pace, lodging & rules for your chosen destination.",
+        )
         persona = persona_options[persona_display]
-
-        self_drive = st.checkbox("Self-Drive (Include Car Rental)", value=surprise_data["self_drive"] if surprise_data else False)
-        no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
-
-        if not no_budget:
-            budget = st.number_input("Budget in SGD (S$)", min_value=100.0, value=3000.0, step=100.0, format="%.2f")
-        else:
-            budget = 0.0
 
         custom_profile = None
         if persona == "saved":
             custom_profile = saved_prof
             persona = "custom"
-            st.info(f"Using saved persona: **{saved_label}**")
+            st.info(f"Using saved persona preferences: **{saved_label}**")
         elif persona == "custom":
             with st.expander("🛠️ Define Custom Persona Rules", expanded=True):
                 custom_title = st.text_input("Persona Name", value="🧘 Wellness & Slow Travel Retreat")
@@ -176,8 +218,9 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
                     "rules": custom_rules,
                 }
 
-        with st.expander("👤 Saved Persona & Preferences Settings", expanded=False):
-            st.markdown("#### ⚙️ Saved Persona Profile")
+        with st.expander("👤 Saved Persona & Preference Settings", expanded=False):
+            st.markdown("#### ⚙️ Reusable Persona Profile")
+            st.caption("This profile is saved to `user_profile.json` and reused across any destination.")
             edit_label = st.text_input("Saved Persona Name", value=saved_prof.get("label", "⭐ Saved Persona"))
             edit_tempo = st.selectbox(
                 "Saved Pacing Tempo",
@@ -189,7 +232,7 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
             edit_lodging = st.text_input("Saved Accommodation", value=saved_prof.get("accommodation", "comfortable boutique or 4-star hotels"))
             edit_rules = st.text_area("Saved Persona Rules", value=saved_prof.get("rules", "1. Balance highlights with relaxed exploration."), height=100)
 
-            st.markdown("#### 🍽️ User Preferences Section")
+            st.markdown("#### 🍽️ User Preference Settings")
             user_prefs = st.session_state.user_profile.get("preferences", {})
 
             dietary_options = ["Local Delicacies", "Halal", "Vegetarian", "Vegan", "Gluten-Free", "Seafood", "Michelin Star", "Kid-Friendly"]
@@ -214,7 +257,7 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
 
             selected_notes = st.text_area("Special Directives & Custom Needs", value=user_prefs.get("custom_instructions", ""), placeholder="e.g. Senior friendly, quiet rooms, coffee shops nearby...")
 
-            if st.button("💾 Save Profile to JSON", use_container_width=True):
+            if st.button("💾 Save Persona & Preferences to JSON", use_container_width=True):
                 new_profile_data = {
                     "saved_persona": {
                         "key": "custom",
@@ -235,7 +278,7 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
                 }
                 if save_user_profile(new_profile_data):
                     st.session_state.user_profile = new_profile_data
-                    st.toast("✅ Profile & Preferences saved to user_profile.json!")
+                    st.toast("✅ Persona profile & preferences saved to user_profile.json!")
                     st.rerun()
                 else:
                     st.error("❌ Failed to save profile to JSON.")

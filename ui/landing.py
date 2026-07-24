@@ -118,21 +118,29 @@ def render_landing_view(gemini_key):
                 st.markdown(f"### {p['title']}")
                 st.markdown(f"**Season:** {season_now.capitalize()} • **Duration:** {p['duration_days']} Days")
                 st.markdown(f"_{p['reason']}_")
-                if st.button(f"🚀 Plan Trip to {p['destination']}", key=f"btn_pick_{idx}", use_container_width=True):
-                    start_d = date.today() + timedelta(days=14)
-                    end_d = start_d + timedelta(days=p['duration_days'] - 1)
-                    st.session_state.surprise_pick = {
-                        "title": p["title"],
-                        "reason": p["reason"],
-                        "destination": p["destination"],
-                        "origin": p["origin"],
-                        "persona": p["persona"],
-                        "self_drive": p["self_drive"],
-                        "no_budget": True,
-                        "dates_tuple": (start_d, end_d),
-                        "duration_days": p["duration_days"]
-                    }
-                    st.rerun()
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button(f"🚀 Apply Destination & Vibe", key=f"btn_pick_full_{idx}", use_container_width=True):
+                        start_d = date.today() + timedelta(days=14)
+                        end_d = start_d + timedelta(days=p['duration_days'] - 1)
+                        st.session_state.surprise_pick = {
+                            "title": p["title"],
+                            "reason": p["reason"],
+                            "destination": p["destination"],
+                            "origin": p["origin"],
+                            "persona": p["persona"],
+                            "self_drive": p["self_drive"],
+                            "no_budget": True,
+                            "dates_tuple": (start_d, end_d),
+                            "duration_days": p["duration_days"]
+                        }
+                        st.rerun()
+                with col_b2:
+                    if st.button(f"🎨 Apply Vibe Only", key=f"btn_pick_vibe_{idx}", use_container_width=True, help="Applies this seasonal persona style to your current destination without changing your destination!"):
+                        st.session_state.user_profile["saved_persona"]["key"] = p["persona"]
+                        st.session_state.user_profile["saved_persona"]["label"] = f"🌟 {p['title']}"
+                        st.toast(f"🎨 Applied '{p['title']}' vibe to your current destination!")
+                        st.rerun()
                 st.markdown("---")
 
     with land_tab_features:

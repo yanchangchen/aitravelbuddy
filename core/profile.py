@@ -75,11 +75,18 @@ def load_user_profile(file_path: str = DEFAULT_PROFILE_FILE) -> dict:
 def save_user_profile(profile_data: dict, file_path: str = DEFAULT_PROFILE_FILE) -> bool:
     """Save the user persona and preferences dictionary safely to a JSON file.
 
+    Strips out trip-specific fields (destination, origin, dates, budget) so personas remain
+    completely reusable across any destination.
     Returns True on success, False on failure.
     """
     try:
+        saved_p = dict(profile_data.get("saved_persona", DEFAULT_SAVED_PERSONA))
+        # Strip out any accidental trip-specific fields
+        for trip_key in ["destination", "origin", "dates", "budget", "self_drive", "num_adults", "num_children"]:
+            saved_p.pop(trip_key, None)
+
         data_to_save = {
-            "saved_persona": profile_data.get("saved_persona", DEFAULT_SAVED_PERSONA),
+            "saved_persona": saved_p,
             "preferences": profile_data.get("preferences", DEFAULT_USER_PREFERENCES),
             "updated_at": datetime.now().isoformat(),
         }
