@@ -4,9 +4,14 @@ Modularized Streamlit application router and execution engine.
 """
 
 import os
+import sys
+
+# Ensure root workspace directory is in sys.path for Streamlit Cloud execution
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 import streamlit as st
 
-from core.logger import get_logger, clear_session_logs
+from core.logger import get_logger, get_session_logs, clear_session_logs
 from core.db import init_db
 from core.profile import load_user_profile
 from ui.styles import inject_custom_css
