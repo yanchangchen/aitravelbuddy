@@ -42,6 +42,7 @@ aitravelbuddy/
 ├── user_profile.json          # Local persistence for user persona & preference settings
 ├── .saved_trips.json          # Local fallback for saved trip plans and agent run states
 ├── README.md                  # System architecture & developer documentation
+├── SPECIFICATION.md           # Authoritative system specification & technical reference
 ├── core/                      # Core business logic, agents, and graph definition
 │   ├── __init__.py
 │   ├── state.py               # Central TravelBuddyState TypedDict schema definition
