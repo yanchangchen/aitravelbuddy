@@ -4,6 +4,7 @@ Streamlit web application entry point in clean light mode with complete itinerar
 """
 
 import os
+import json
 import urllib.parse
 import streamlit as st
 import pandas as pd
@@ -160,7 +161,7 @@ with st.sidebar:
     tavily_key = secret_tavily
     gmaps_key = secret_gmaps
 
-    st.markdown("## 💾 Saved Trips")
+    st.markdown("## 💾 Saved Trips & Agent State")
     if is_db_ready():
         saved_trips = get_saved_trips()
         if saved_trips:
@@ -182,6 +183,19 @@ with st.sidebar:
             st.caption("No saved trips found.")
     else:
         st.caption("⚠️ Storage connection unavailable.")
+
+    uploaded_state_file = st.file_uploader("📤 Import Agent State (.json)", type=["json"], key="sidebar_import_state")
+    if uploaded_state_file is not None:
+        try:
+            import_data = json.load(uploaded_state_file)
+            if isinstance(import_data, dict) and ("itinerary" in import_data or "destination" in import_data):
+                st.session_state.current_result = import_data
+                st.toast("✅ Agent run state imported successfully!")
+                st.rerun()
+            else:
+                st.error("Invalid agent state JSON file format.")
+        except Exception as e:
+            st.error(f"Failed to import agent state: {e}")
     st.markdown("---")
 
     st.markdown("## 👥 Travelers & Group Composition")
@@ -560,13 +574,29 @@ if plan_button:
 
     # ── Display Results ───────────────────────────────────────────────────
     with result_container:
-        if is_db_ready() and status == "approved":
-            if st.button("💾 Save Trip"):
-                p_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"] if persona != "custom" else "Custom Persona"
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            p_label = PERSONA_PROFILES.get(persona, PERSONA_PROFILES["couple"])["label"] if persona != "custom" else "Custom Persona"
+            if custom_profile and isinstance(custom_profile, dict):
+                p_label = custom_profile.get("label", p_label)
+
+            if st.button("💾 Save Trip & Agent State", type="primary", use_container_width=True, key="save_trip_main_btn"):
                 if save_trip_plan(destination, travelers_summary, p_label, dates, result):
-                    st.success("Trip saved successfully!")
+                    st.toast(f"✅ Trip details & agent run state saved for {destination}!")
                 else:
-                    st.error("Failed to save trip.")
+                    st.error("Failed to save trip plan.")
+
+        with col_s2:
+            agent_json_bytes = json.dumps(result, indent=2, ensure_ascii=False).encode("utf-8")
+            safe_dest_name = sanitize_filename(destination).lower().replace(" ", "_")
+            st.download_button(
+                label="📥 Export Agent State (.json)",
+                data=agent_json_bytes,
+                file_name=f"agent_run_state_{safe_dest_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True,
+                key="export_agent_state_main_btn"
+            )
 
         st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
@@ -820,13 +850,29 @@ elif "current_result" in st.session_state and st.session_state.current_result:
     res_budget = result.get("budget", budget)
     res_custom_profile = result.get("custom_persona_profile", custom_profile)
 
-    if is_db_ready() and status == "approved":
-        if st.button("💾 Save Trip"):
-            p_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"] if res_persona != "custom" else "Custom Persona"
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        p_label = PERSONA_PROFILES.get(res_persona, PERSONA_PROFILES["couple"])["label"] if res_persona != "custom" else "Custom Persona"
+        if res_custom_profile and isinstance(res_custom_profile, dict):
+            p_label = res_custom_profile.get("label", p_label)
+
+        if st.button("💾 Save Trip & Agent State", type="primary", use_container_width=True, key="save_trip_loaded_btn"):
             if save_trip_plan(res_destination, res_travelers, p_label, res_dates, result):
-                st.success("Trip saved successfully!")
+                st.toast(f"✅ Trip details & agent run state saved for {res_destination}!")
             else:
-                st.error("Failed to save trip.")
+                st.error("Failed to save trip plan.")
+
+    with col_s2:
+        agent_json_bytes = json.dumps(result, indent=2, ensure_ascii=False).encode("utf-8")
+        safe_dest_name = sanitize_filename(res_destination).lower().replace(" ", "_")
+        st.download_button(
+            label="📥 Export Agent State (.json)",
+            data=agent_json_bytes,
+            file_name=f"agent_run_state_{safe_dest_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            use_container_width=True,
+            key="export_agent_state_loaded_btn"
+        )
 
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
 
