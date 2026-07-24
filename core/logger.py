@@ -32,6 +32,12 @@ _formatter = logging.Formatter(
 )
 _memory_handler.setFormatter(_formatter)
 
+# Configure parent logger for travel_buddy package
+_root_tb_logger = logging.getLogger("travel_buddy")
+_root_tb_logger.setLevel(logging.DEBUG)
+if _memory_handler not in _root_tb_logger.handlers:
+    _root_tb_logger.addHandler(_memory_handler)
+
 
 def get_logger(module_name: str) -> logging.Logger:
     """Get a configured logger for a given Travel Buddy module."""
@@ -44,7 +50,10 @@ def get_logger(module_name: str) -> logging.Logger:
 
 def get_session_logs() -> str:
     """Retrieve all logged messages for the current session."""
-    return _memory_handler.get_logs()
+    logs = _memory_handler.get_logs()
+    if not logs:
+        return "[SYSTEM LOG]: Session started. Agent logs will appear here during execution."
+    return logs
 
 
 def clear_session_logs():

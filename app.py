@@ -158,6 +158,16 @@ if inputs["plan_button"]:
     except Exception as e:
         logger.exception(f"Pipeline execution error: {e}")
         st.error(f"❌ Execution error: {e}")
+        logs_content = get_session_logs()
+        with st.expander("🚨 View Diagnostic Execution Logs & Stack Trace", expanded=True):
+            st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+            st.download_button(
+                label="📥 Download Diagnostic Debug Log (.log)",
+                data=logs_content.encode("utf-8"),
+                file_name="pipeline_failure_debug.log",
+                mime="text/plain",
+                use_container_width=True,
+            )
         st.stop()
 
     result = dict(initial_state)
@@ -165,6 +175,7 @@ if inputs["plan_button"]:
         if isinstance(output, dict):
             result.update(output)
 
+    result["session_logs"] = get_session_logs()
     st.session_state.current_result = result
 
     with result_container:

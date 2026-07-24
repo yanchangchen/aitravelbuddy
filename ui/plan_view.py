@@ -53,7 +53,19 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
             file_name=f"agent_run_state_{safe_dest_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
             mime="application/json",
             use_container_width=True,
-            key="export_agent_state_view_btn"
+        )
+
+    logs_content = result.get("session_logs") or get_session_logs()
+
+    with st.expander("📜 View Real-Time Agent Console & Debug Logs", expanded=False):
+        st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
+        st.download_button(
+            label="📥 Download Debug Log (.log)",
+            data=logs_content.encode("utf-8"),
+            file_name="travel_buddy_debug.log",
+            mime="text/plain",
+            use_container_width=True,
+            key="dl_debug_log_top"
         )
 
     st.markdown('<div class="gradient-divider"></div>', unsafe_allow_html=True)
@@ -260,11 +272,10 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
                         st.error(f"Failed to generate answer: {e}")
 
     with tab_advanced:
-        with st.expander("⚖️ Quality Verdict (Agent-as-Judge)"):
+        with st.expander("⚖️ Quality Verdict (Agent-as-Judge)", expanded=True):
             st.markdown(result.get("judge_verdict", "N/A"))
 
-        with st.expander("📜 Session Execution & Troubleshooting Logs"):
-            logs_content = get_session_logs()
+        with st.expander("📜 Session Execution & Real-Time Agent Logs", expanded=True):
             st.markdown(f'<div class="log-box">{logs_content}</div>', unsafe_allow_html=True)
             st.download_button(
                 label="📥 Download System Debug Log (.log)",
