@@ -58,6 +58,8 @@ def render_sidebar(secret_gemini, secret_tavily, secret_gmaps):
 
         # Check if a Surprise Pick was triggered
         surprise_data = st.session_state.pop("surprise_pick", None)
+        if surprise_data:
+            st.session_state.active_surprise_banner = surprise_data
 
         st.markdown("## 📍 1. Destination & Logistics")
 

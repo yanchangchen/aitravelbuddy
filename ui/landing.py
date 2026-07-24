@@ -8,6 +8,14 @@ from core.surprise import SEASONAL_PACKAGES, get_current_season
 
 def render_landing_view(gemini_key):
     """Render interactive landing view with Guided Plan Chatbot & Seasonal Picks."""
+    if "active_surprise_banner" in st.session_state and st.session_state.active_surprise_banner:
+        b = st.session_state.pop("active_surprise_banner")
+        st.info(
+            f"🎲 **Seasonal Pick Active:** {b.get('title', 'Seasonal Trip')}\n\n"
+            f"📍 **Destination:** {b.get('destination', '')} • 📅 **Dates:** {b.get('dates_str', '')} ({b.get('num_days', 5)} Days)\n\n"
+            f"👈 **Search criteria pre-filled in sidebar!** You can **edit any criteria in the sidebar** or click **'🚀 Plan My Trip'** to generate your AI itinerary!"
+        )
+
     st.markdown("### 🌟 Welcome to Travel Buddy — Undecided? We've Got You!")
 
     land_tab_guided, land_tab_surprise, land_tab_features = st.tabs([
