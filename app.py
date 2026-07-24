@@ -13,6 +13,7 @@ from datetime import datetime
 from core.logger import get_logger, get_session_logs, clear_session_logs
 from core.db import init_db, is_db_ready, save_trip_plan, get_saved_trips, get_trip_plan
 from core.personas import PERSONA_PROFILES
+from core.profile import load_user_profile, save_user_profile
 from core.utils import (
     build_recommendations_text,
     sanitize_filename,
@@ -148,8 +149,11 @@ secret_tavily = get_secret("TAVILY_API_KEY")
 secret_gmaps = get_secret("GOOGLE_MAPS_API_KEY") or get_secret("GMAPS_API_KEY")
 
 
-# Initialize DB
+# Initialize DB & User Profile
 init_db(get_secret("SUPABASE_URL"), get_secret("SUPABASE_KEY"))
+
+if "user_profile" not in st.session_state:
+    st.session_state.user_profile = load_user_profile()
 
 with st.sidebar:
     gemini_key = secret_gemini
@@ -257,8 +261,12 @@ with st.sidebar:
     st.caption(f"📅 Duration: **{num_days} Day{'s' if num_days > 1 else ''}** ({dates_str})")
     dates = dates_str
 
-    st.markdown("### 🎭 Traveler Persona")
+    st.markdown("### 🎭 Traveler Persona & Preferences")
+    saved_prof = st.session_state.user_profile.get("saved_persona", {})
+    saved_label = saved_prof.get("label", "⭐ Saved Persona")
+
     persona_options = {
+        f"{saved_label}": "saved",
         "🧑 Solo Traveler": "single",
         "💼 Business Traveler": "business",
         "💑 Couple's Getaway": "couple",
@@ -269,12 +277,16 @@ with st.sidebar:
     persona_display = st.radio(
         "Select Persona",
         options=list(persona_options.keys()),
-        index=3,  # Default Family for 2 adults 1 child
+        index=0,
     )
     persona = persona_options[persona_display]
 
     custom_profile = None
-    if persona == "custom":
+    if persona == "saved":
+        custom_profile = saved_prof
+        persona = "custom"
+        st.info(f"Using saved persona: **{saved_label}**")
+    elif persona == "custom":
         with st.expander("🛠️ Define Custom Persona Rules", expanded=True):
             custom_title = st.text_input("Persona Name", value="🧘 Wellness & Slow Travel Retreat")
             custom_tempo = st.selectbox("Pacing Tempo", options=["low", "medium", "high"], index=0)
@@ -299,6 +311,70 @@ with st.sidebar:
                 "accommodation": custom_lodging,
                 "rules": custom_rules,
             }
+
+    with st.expander("👤 Saved Persona & Preferences Settings", expanded=False):
+        st.markdown("#### ⚙️ Saved Persona Profile")
+        edit_label = st.text_input("Saved Persona Name", value=saved_prof.get("label", "⭐ Saved Persona"))
+        edit_tempo = st.selectbox(
+            "Saved Pacing Tempo",
+            options=["low", "medium", "high", "efficient"],
+            index=["low", "medium", "high", "efficient"].index(saved_prof.get("tempo", "medium")) if saved_prof.get("tempo") in ["low", "medium", "high", "efficient"] else 1,
+        )
+        edit_mobility = st.text_input("Saved Mobility", value=saved_prof.get("mobility", "balanced — walking & public transit"))
+        edit_dining = st.text_input("Saved Dining Style", value=saved_prof.get("dining_style", "mix of local hidden gems & curated dining"))
+        edit_lodging = st.text_input("Saved Accommodation", value=saved_prof.get("accommodation", "comfortable boutique or 4-star hotels"))
+        edit_rules = st.text_area("Saved Persona Rules", value=saved_prof.get("rules", "1. Balance highlights with relaxed exploration."), height=100)
+
+        st.markdown("#### 🍽️ User Preferences Section")
+        user_prefs = st.session_state.user_profile.get("preferences", {})
+
+        dietary_options = ["Local Delicacies", "Halal", "Vegetarian", "Vegan", "Gluten-Free", "Seafood", "Michelin Star", "Kid-Friendly"]
+        curr_dietary = user_prefs.get("dietary", ["Local Delicacies"])
+        if isinstance(curr_dietary, str):
+            curr_dietary = [curr_dietary]
+        selected_dietary = st.multiselect("Dietary Preferences", options=dietary_options, default=[d for d in curr_dietary if d in dietary_options] or ["Local Delicacies"])
+
+        accom_options = ["Boutique & Quiet", "Luxury Resort", "Family Suite", "Hostel / Budget", "Executive Hotel", "Centrally Located"]
+        curr_accom = user_prefs.get("accommodation_pref", "Boutique & Quiet")
+        selected_accom = st.selectbox("Preferred Accommodation Style", options=accom_options, index=accom_options.index(curr_accom) if curr_accom in accom_options else 0)
+
+        pace_options = ["Relaxed", "Balanced", "Fast-Paced", "Intensive"]
+        curr_pace = user_prefs.get("travel_pace", "Balanced")
+        selected_pace = st.selectbox("Preferred Travel Pace", options=pace_options, index=pace_options.index(curr_pace) if curr_pace in pace_options else 1)
+
+        interest_options = ["Culture & History", "Food & Culinary", "Nature & Outdoors", "Shopping & Retail", "Nightlife", "Wellness & Spa", "Family Attractions"]
+        curr_interests = user_prefs.get("interests", ["Culture & History", "Food & Culinary"])
+        if isinstance(curr_interests, str):
+            curr_interests = [curr_interests]
+        selected_interests = st.multiselect("Top Travel Interests", options=interest_options, default=[i for i in curr_interests if i in interest_options] or ["Culture & History"])
+
+        selected_notes = st.text_area("Special Directives & Custom Needs", value=user_prefs.get("custom_instructions", ""), placeholder="e.g. Senior friendly, quiet rooms, coffee shops nearby...")
+
+        if st.button("💾 Save Profile to JSON", use_container_width=True):
+            new_profile_data = {
+                "saved_persona": {
+                    "key": "custom",
+                    "label": edit_label,
+                    "tempo": edit_tempo,
+                    "mobility": edit_mobility,
+                    "dining_style": edit_dining,
+                    "accommodation": edit_lodging,
+                    "rules": edit_rules,
+                },
+                "preferences": {
+                    "dietary": selected_dietary,
+                    "accommodation_pref": selected_accom,
+                    "travel_pace": selected_pace,
+                    "interests": selected_interests,
+                    "custom_instructions": selected_notes,
+                }
+            }
+            if save_user_profile(new_profile_data):
+                st.session_state.user_profile = new_profile_data
+                st.toast("✅ Profile & Preferences saved to user_profile.json!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to save profile to JSON.")
 
     st.markdown("---")
     plan_button = st.button(
@@ -344,7 +420,13 @@ if plan_button:
     with st.spinner("Initializing AI agents & LangGraph pipeline..."):
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
-            from langchain_community.tools.tavily_search import TavilySearchResults
+            try:
+                from langchain_tavily import TavilySearch as TavilySearchResults
+            except ImportError:
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    from langchain_community.tools.tavily_search import TavilySearchResults
             from core.graph import build_graph
 
             llm = ChatGoogleGenerativeAI(
@@ -396,6 +478,7 @@ if plan_button:
         "num_days": num_days,
         "persona": persona,
         "custom_persona_profile": custom_profile,
+        "user_preferences": st.session_state.user_profile.get("preferences"),
         "itinerary": "",
         "food_and_retail": "",
         "hotel_recommendations": "",

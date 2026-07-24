@@ -29,3 +29,6 @@ travel_buddy_*.txt
 # Environment
 .env
 *.log
+.saved_trips.json
+user_profile.json
+*.tmp

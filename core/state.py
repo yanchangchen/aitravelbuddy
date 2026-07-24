@@ -31,6 +31,7 @@ class TravelBuddyState(TypedDict, total=False):
     num_days: int              # Total number of travel days calculated from dates
     persona: str
     custom_persona_profile: Optional[dict]
+    user_preferences: Optional[dict]
     itinerary: str
     food_and_retail: str
     hotel_recommendations: str

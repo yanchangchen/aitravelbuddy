@@ -135,7 +135,7 @@ def get_persona_context(state: dict, persona_profiles: dict) -> str:
     travelers = state.get("travelers_summary", "2 Adults, 1 Child (>2 yrs)")
     self_drive = "YES (Car Rental)" if state.get("self_drive", False) else "NO (Public Transport/Taxi)"
 
-    return (
+    base_context = (
         f"Traveler Persona: {profile.get('label', 'Custom Persona')}\n"
         f"Group Composition: {travelers}\n"
         f"Origin City: {origin}\n"
@@ -148,6 +148,15 @@ def get_persona_context(state: dict, persona_profiles: dict) -> str:
         f"\nMANDATORY PERSONA RULES (you MUST follow all of these):\n"
         f"{profile.get('rules', 'Follow traveler preferences strictly.')}"
     )
+
+    preferences = state.get("user_preferences")
+    if preferences:
+        from .profile import format_preferences_context
+        pref_text = format_preferences_context(preferences)
+        if pref_text:
+            base_context += f"\n\n{pref_text}"
+
+    return base_context
 
 
 def get_critique_context(state: dict) -> str:
