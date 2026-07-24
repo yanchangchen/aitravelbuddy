@@ -41,3 +41,4 @@ class TravelBuddyState(TypedDict, total=False):
     critique_history: Annotated[list[str], operator.add]
     status: str
     judge_verdict: str
+    quality_failure_reason: Optional[str]

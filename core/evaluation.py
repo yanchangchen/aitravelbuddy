@@ -199,26 +199,45 @@ def agent_as_judge(state: dict) -> dict:
 
 
 def terminal_fallback(state: dict) -> dict:
-    """Terminal fallback when budget or quality cannot be reconciled after 3 attempts."""
-    logger.error(f"[Terminal Fallback] Handling terminal failure for destination='{state['destination']}'")
+    """Terminal fallback when budget or quality cannot be reconciled after 3 attempts.
+    
+    Preserves all generated itinerary, food, hotel, and purchasing content, but marks
+    status as 'unapproved' and provides a detailed quality_failure_reason so the user
+    can inspect the provisional plan and relax criteria to rerun the pipeline.
+    """
+    logger.error(f"[Terminal Fallback] Handling terminal quality/budget reconciliation for destination='{state['destination']}'")
     history = state.get("critique_history", [])
-    history_text = "\n".join(f"  - {c}" for c in history)
+    history_text = "\n".join(f"  • {c}" for c in history) if history else "  • Failed strict criteria check after maximum retry attempts."
     budget_sgd = state.get("budget", 0.0)
+    verdict = state.get("judge_verdict", "")
 
-    notice = (
-        f"PLANNING RECONCILIATION FAILED\n"
-        f"{'=' * 50}\n"
-        f"Origin: {state.get('origin', 'Singapore')}\n"
-        f"Destination: {state['destination']}\n"
-        f"Budget: S${budget_sgd:,.2f} SGD\n"
-        f"Dates: {state['dates']}\n"
-        f"Persona: {state['persona']}\n\n"
-        f"The system attempted 3 rounds of planning but could not\n"
-        f"produce a plan meeting the budget and quality constraints.\n\n"
-        f"Attempt History:\n{history_text}\n\n"
-        f"RECOMMENDATION: Increase budget, select 'No budget limit', reduce days, choose a cheaper destination, or relax custom persona rules."
+    failure_type = "Quality / Persona Rule Compliance" if ("Quality Score" in history_text or verdict) else "Budget Constraints"
+
+    failure_reason = (
+        f"⚠️ PLAN UNAPPROVED — DID NOT PASS {failure_type.upper()} EVALUATION\n"
+        f"{'=' * 65}\n"
+        f"• Origin: {state.get('origin', 'Singapore')} ➔ Destination: {state.get('destination', 'N/A')}\n"
+        f"• Group Composition: {state.get('travelers_summary', 'N/A')}\n"
+        f"• Persona Profile: {state.get('persona', 'N/A')}\n"
+        f"• User Budget: S${budget_sgd:,.2f} SGD ({'Flexible' if state.get('no_budget') else 'Bounded'})\n\n"
+        f"📌 REASON FOR REJECTION:\n"
+        f"{history_text}\n\n"
     )
-    return {"status": "failed", "budget_breakdown": notice}
+    if verdict:
+        failure_reason += f"⚖️ AGENT-AS-JUDGE VERDICT:\n{verdict}\n\n"
+
+    failure_reason += (
+        f"💡 HOW TO RELAX CRITERIA TO RERUN THE PIPELINE:\n"
+        f"1. Toggle 'Infinite / Flexible Budget (No Limit)' to bypass budget guardrails.\n"
+        f"2. Switch Persona Profile or relax mandatory persona rules.\n"
+        f"3. Adjust travel duration or add custom notes in the input panel below."
+    )
+
+    return {
+        "status": "unapproved",
+        "quality_failure_reason": failure_reason,
+        "budget_breakdown": state.get("budget_breakdown", failure_reason),
+    }
 
 
 def final_output(state: dict) -> dict:
