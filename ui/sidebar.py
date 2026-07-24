@@ -68,19 +68,29 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
 
         st.markdown("---")
 
+        # Initialize session_state widget keys ONCE if missing
+        if "input_destination_text" not in st.session_state:
+            st.session_state["input_destination_text"] = "Tokyo, Japan"
+        if "input_origin_text" not in st.session_state:
+            st.session_state["input_origin_text"] = "Singapore"
+        if "input_dates" not in st.session_state:
+            d_start = date.today()
+            d_end = d_start + timedelta(days=4)
+            st.session_state["input_dates"] = (d_start, d_end)
+        if "input_self_drive" not in st.session_state:
+            st.session_state["input_self_drive"] = False
+
         # ── Check if a Surprise Pick was triggered ───────────────────────────
         surprise_data = st.session_state.pop("surprise_pick", None)
         if surprise_data:
             st.session_state.active_surprise_banner = surprise_data
-            # Set state defaults when user explicitly triggers a surprise pick
-            st.session_state.trip_destination = surprise_data["destination"]
-            st.session_state.trip_origin = surprise_data["origin"]
-
-        # Ensure session_state keys exist for Trip Logistics
-        if "trip_destination" not in st.session_state:
-            st.session_state.trip_destination = "Tokyo, Japan"
-        if "trip_origin" not in st.session_state:
-            st.session_state.trip_origin = "Singapore"
+            # Overwrite session_state widget keys directly so Streamlit inputs display the surprise pick
+            st.session_state["input_destination_text"] = surprise_data["destination"]
+            st.session_state["input_origin_text"] = surprise_data["origin"]
+            if "dates_tuple" in surprise_data:
+                st.session_state["input_dates"] = surprise_data["dates_tuple"]
+            if "self_drive" in surprise_data:
+                st.session_state["input_self_drive"] = surprise_data["self_drive"]
 
         # ── CARD 1: TRIP LOGISTICS (TRIP-SPECIFIC & INDEPENDENT) ─────────────
         st.markdown("## 📍 1. Trip Logistics")
@@ -88,28 +98,24 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
 
         origin = st.text_input(
             "Source City (Origin)",
-            value=st.session_state.trip_destination if False else st.session_state.trip_origin,
             key="input_origin_text",
             placeholder="e.g. Singapore",
         )
-        st.session_state.trip_origin = origin
 
         destination = st.text_input(
             "Destination City/Country",
-            value=st.session_state.trip_destination,
             key="input_destination_text",
             placeholder="e.g. Tokyo, Japan",
         )
-        st.session_state.trip_destination = destination
 
         st.markdown("##### 👥 Group Composition")
         col_a, col_c, col_i = st.columns(3)
         with col_a:
-            num_adults = st.number_input("Adults", min_value=1, max_value=20, value=2, step=1)
+            num_adults = st.number_input("Adults", min_value=1, max_value=20, value=2, step=1, key="input_num_adults")
         with col_c:
-            num_children = st.number_input("Children", min_value=0, max_value=20, value=1, step=1)
+            num_children = st.number_input("Children", min_value=0, max_value=20, value=1, step=1, key="input_num_children")
         with col_i:
-            num_infants = st.number_input("Infants", min_value=0, max_value=10, value=0, step=1)
+            num_infants = st.number_input("Infants", min_value=0, max_value=10, value=0, step=1, key="input_num_infants")
 
         travelers_parts = [f"{num_adults} Adult{'s' if num_adults>1 else ''}"]
         if num_children > 0:
@@ -118,12 +124,9 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
             travelers_parts.append(f"{num_infants} Infant{'s' if num_infants>1 else ''}")
         travelers_summary = ", ".join(travelers_parts)
 
-        default_start = surprise_data["dates_tuple"][0] if surprise_data else date.today()
-        default_end = surprise_data["dates_tuple"][1] if surprise_data else (default_start + timedelta(days=4))
-
         selected_dates = st.date_input(
             "Travel Dates",
-            value=(default_start, default_end),
+            key="input_dates",
             min_value=date.today(),
         )
 
@@ -144,11 +147,11 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
         dates = dates_str
 
         # Logistics specifics: Self-drive & Budget
-        self_drive = st.checkbox("Self-Drive (Include Car Rental & Tolls)", value=surprise_data["self_drive"] if surprise_data else False)
-        no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
+        self_drive = st.checkbox("Self-Drive (Include Car Rental & Tolls)", key="input_self_drive")
+        no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True, key="input_no_budget")
 
         if not no_budget:
-            budget = st.number_input("Budget in SGD (S$)", min_value=100.0, value=3000.0, step=100.0, format="%.2f")
+            budget = st.number_input("Budget in SGD (S$)", min_value=100.0, value=3000.0, step=100.0, format="%.2f", key="input_budget_val")
         else:
             budget = 0.0
 
@@ -183,6 +186,7 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
             "Select Persona Profile",
             options=list(persona_options.keys()),
             index=default_persona_idx,
+            key="input_persona_radio",
             help="Selecting a persona updates dining, pace, lodging & rules for your chosen destination.",
         )
         persona = persona_options[persona_display]
@@ -194,11 +198,11 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
             st.info(f"Using saved persona preferences: **{saved_label}**")
         elif persona == "custom":
             with st.expander("🛠️ Define Custom Persona Rules", expanded=True):
-                custom_title = st.text_input("Persona Name", value="🧘 Wellness & Slow Travel Retreat")
-                custom_tempo = st.selectbox("Pacing Tempo", options=["low", "medium", "high"], index=0)
-                custom_mobility = st.text_input("Mobility Preference", value="relaxed walking, private shuttles")
-                custom_dining = st.text_input("Dining Style", value="organic farm-to-table, plant-based cafes, tea houses")
-                custom_lodging = st.text_input("Accommodation Preference", value="wellness resorts, quiet ryokans, boutique retreats")
+                custom_title = st.text_input("Persona Name", value="🧘 Wellness & Slow Travel Retreat", key="custom_p_title")
+                custom_tempo = st.selectbox("Pacing Tempo", options=["low", "medium", "high"], index=0, key="custom_p_tempo")
+                custom_mobility = st.text_input("Mobility Preference", value="relaxed walking, private shuttles", key="custom_p_mobility")
+                custom_dining = st.text_input("Dining Style", value="organic farm-to-table, plant-based cafes, tea houses", key="custom_p_dining")
+                custom_lodging = st.text_input("Accommodation Preference", value="wellness resorts, quiet ryokans, boutique retreats", key="custom_p_lodging")
                 custom_rules = st.text_area(
                     "Mandatory Persona Rules (1 per line)",
                     value=(
@@ -208,6 +212,7 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
                         "4. Include healthy, organic dining options."
                     ),
                     height=120,
+                    key="custom_p_rules",
                 )
                 custom_profile = {
                     "label": f"🎨 {custom_title}",
@@ -221,16 +226,17 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
         with st.expander("👤 Saved Persona & Preference Settings", expanded=False):
             st.markdown("#### ⚙️ Reusable Persona Profile")
             st.caption("This profile is saved to `user_profile.json` and reused across any destination.")
-            edit_label = st.text_input("Saved Persona Name", value=saved_prof.get("label", "⭐ Saved Persona"))
+            edit_label = st.text_input("Saved Persona Name", value=saved_prof.get("label", "⭐ Saved Persona"), key="edit_p_label")
             edit_tempo = st.selectbox(
                 "Saved Pacing Tempo",
                 options=["low", "medium", "high", "efficient"],
                 index=["low", "medium", "high", "efficient"].index(saved_prof.get("tempo", "medium")) if saved_prof.get("tempo") in ["low", "medium", "high", "efficient"] else 1,
+                key="edit_p_tempo",
             )
-            edit_mobility = st.text_input("Saved Mobility", value=saved_prof.get("mobility", "balanced — walking & public transit"))
-            edit_dining = st.text_input("Saved Dining Style", value=saved_prof.get("dining_style", "mix of local hidden gems & curated dining"))
-            edit_lodging = st.text_input("Saved Accommodation", value=saved_prof.get("accommodation", "comfortable boutique or 4-star hotels"))
-            edit_rules = st.text_area("Saved Persona Rules", value=saved_prof.get("rules", "1. Balance highlights with relaxed exploration."), height=100)
+            edit_mobility = st.text_input("Saved Mobility", value=saved_prof.get("mobility", "balanced — walking & public transit"), key="edit_p_mobility")
+            edit_dining = st.text_input("Saved Dining Style", value=saved_prof.get("dining_style", "mix of local hidden gems & curated dining"), key="edit_p_dining")
+            edit_lodging = st.text_input("Saved Accommodation", value=saved_prof.get("accommodation", "comfortable boutique or 4-star hotels"), key="edit_p_lodging")
+            edit_rules = st.text_area("Saved Persona Rules", value=saved_prof.get("rules", "1. Balance highlights with relaxed exploration."), height=100, key="edit_p_rules")
 
             st.markdown("#### 🍽️ User Preference Settings")
             user_prefs = st.session_state.user_profile.get("preferences", {})
@@ -239,23 +245,23 @@ def render_sidebar(gemini_key: str, tavily_key: str, gmaps_key: str) -> dict:
             curr_dietary = user_prefs.get("dietary", ["Local Delicacies"])
             if isinstance(curr_dietary, str):
                 curr_dietary = [curr_dietary]
-            selected_dietary = st.multiselect("Dietary Preferences", options=dietary_options, default=[d for d in curr_dietary if d in dietary_options] or ["Local Delicacies"])
+            selected_dietary = st.multiselect("Dietary Preferences", options=dietary_options, default=[d for d in curr_dietary if d in dietary_options] or ["Local Delicacies"], key="edit_p_dietary")
 
             accom_options = ["Boutique & Quiet", "Luxury Resort", "Family Suite", "Hostel / Budget", "Executive Hotel", "Centrally Located"]
             curr_accom = user_prefs.get("accommodation_pref", "Boutique & Quiet")
-            selected_accom = st.selectbox("Preferred Accommodation Style", options=accom_options, index=accom_options.index(curr_accom) if curr_accom in accom_options else 0)
+            selected_accom = st.selectbox("Preferred Accommodation Style", options=accom_options, index=accom_options.index(curr_accom) if curr_accom in accom_options else 0, key="edit_p_accom")
 
             pace_options = ["Relaxed", "Balanced", "Fast-Paced", "Intensive"]
             curr_pace = user_prefs.get("travel_pace", "Balanced")
-            selected_pace = st.selectbox("Preferred Travel Pace", options=pace_options, index=pace_options.index(curr_pace) if curr_pace in pace_options else 1)
+            selected_pace = st.selectbox("Preferred Travel Pace", options=pace_options, index=pace_options.index(curr_pace) if curr_pace in pace_options else 1, key="edit_p_pace")
 
             interest_options = ["Culture & History", "Food & Culinary", "Nature & Outdoors", "Shopping & Retail", "Nightlife", "Wellness & Spa", "Family Attractions"]
             curr_interests = user_prefs.get("interests", ["Culture & History", "Food & Culinary"])
             if isinstance(curr_interests, str):
                 curr_interests = [curr_interests]
-            selected_interests = st.multiselect("Top Travel Interests", options=interest_options, default=[i for i in curr_interests if i in interest_options] or ["Culture & History"])
+            selected_interests = st.multiselect("Top Travel Interests", options=interest_options, default=[i for i in curr_interests if i in interest_options] or ["Culture & History"], key="edit_p_interests")
 
-            selected_notes = st.text_area("Special Directives & Custom Needs", value=user_prefs.get("custom_instructions", ""), placeholder="e.g. Senior friendly, quiet rooms, coffee shops nearby...")
+            selected_notes = st.text_area("Special Directives & Custom Needs", value=user_prefs.get("custom_instructions", ""), placeholder="e.g. Senior friendly, quiet rooms, coffee shops nearby...", key="edit_p_notes")
 
             if st.button("💾 Save Persona & Preferences to JSON", use_container_width=True):
                 new_profile_data = {
