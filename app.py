@@ -15,6 +15,7 @@ from core.logger import get_logger, get_session_logs, clear_session_logs
 from core.db import init_db, is_db_ready, save_trip_plan, get_saved_trips, get_trip_plan
 from core.personas import PERSONA_PROFILES
 from core.profile import load_user_profile, save_user_profile
+from core.surprise import get_seasonal_surprise
 from core.utils import (
     build_recommendations_text,
     sanitize_filename,
@@ -161,7 +162,15 @@ with st.sidebar:
     tavily_key = secret_tavily
     gmaps_key = secret_gmaps
 
-    st.markdown("## 💾 Saved Trips & Agent State")
+    st.markdown("## 🎲 Inspiration & Past Trips")
+    col_surp, col_load = st.columns([1.2, 1])
+    with col_surp:
+        if st.button("🎲 Surprise Me!", use_container_width=True, type="secondary", help="Click to auto-generate a trending seasonal trip pick!"):
+            surprise = get_seasonal_surprise()
+            st.session_state.surprise_pick = surprise
+            st.toast(f"🎲 Surprise Pick: {surprise['title']}!\n{surprise['reason']}")
+            st.rerun()
+
     if is_db_ready():
         saved_trips = get_saved_trips()
         if saved_trips:
@@ -169,7 +178,7 @@ with st.sidebar:
                 f"{t.get('destination', 'Trip')} ({t.get('persona', 'Plan')}) - {t.get('dates', '')}": t.get("id")
                 for t in saved_trips
             }
-            selected_trip_label = st.selectbox("Select Past Trip", options=list(trip_options.keys()))
+            selected_trip_label = st.selectbox("Select Saved Trip", options=list(trip_options.keys()))
             if st.button("📂 Load Selected Plan", use_container_width=True):
                 trip_id = trip_options[selected_trip_label]
                 loaded_state = get_trip_plan(trip_id)
@@ -179,10 +188,6 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("Failed to load plan.")
-        else:
-            st.caption("No saved trips found.")
-    else:
-        st.caption("⚠️ Storage connection unavailable.")
 
     uploaded_state_file = st.file_uploader("📤 Import Agent State (.json)", type=["json"], key="sidebar_import_state")
     if uploaded_state_file is not None:
@@ -198,65 +203,41 @@ with st.sidebar:
             st.error(f"Failed to import agent state: {e}")
     st.markdown("---")
 
-    st.markdown("## 👥 Travelers & Group Composition")
+    # Check if a Surprise Pick was triggered
+    surprise_data = st.session_state.pop("surprise_pick", None)
+
+    st.markdown("## 📍 1. Destination & Logistics")
+
+    default_origin = surprise_data["origin"] if surprise_data else "Singapore"
+    default_dest = surprise_data["destination"] if surprise_data else "Tokyo, Japan"
+
+    origin = st.text_input("Source City (Origin)", value=default_origin, placeholder="e.g. Singapore")
+    destination = st.text_input("Destination City/Country", value=default_dest, placeholder="e.g. Tokyo, Japan")
+
+    st.markdown("##### 👥 Group Composition")
     col_a, col_c, col_i = st.columns(3)
     with col_a:
         num_adults = st.number_input("Adults", min_value=1, max_value=20, value=2, step=1)
     with col_c:
-        num_children = st.number_input("Children (>2y)", min_value=0, max_value=20, value=1, step=1)
+        num_children = st.number_input("Children", min_value=0, max_value=20, value=1, step=1)
     with col_i:
-        num_infants = st.number_input("Infants (<2y)", min_value=0, max_value=10, value=0, step=1)
+        num_infants = st.number_input("Infants", min_value=0, max_value=10, value=0, step=1)
 
     travelers_parts = [f"{num_adults} Adult{'s' if num_adults>1 else ''}"]
     if num_children > 0:
-        travelers_parts.append(f"{num_children} Child{'ren' if num_children>1 else ''} (>2 yrs)")
+        travelers_parts.append(f"{num_children} Child{'ren' if num_children>1 else ''}")
     if num_infants > 0:
-        travelers_parts.append(f"{num_infants} Infant{'s' if num_infants>1 else ''} (<2 yrs)")
+        travelers_parts.append(f"{num_infants} Infant{'s' if num_infants>1 else ''}")
     travelers_summary = ", ".join(travelers_parts)
 
-    st.caption(f"👥 Total Group: **{travelers_summary}**")
-
-    st.markdown("---")
-    st.markdown("## ✈️ Trip & Transport Details")
-
-    origin = st.text_input(
-        "Source City (Origin)",
-        value="Singapore",
-        placeholder="e.g., Singapore or London",
-    )
-
-    destination = st.text_input(
-        "Destination City/Country",
-        value="Tokyo, Japan",
-        placeholder="e.g., Tokyo, Japan or Paris, France",
-    )
-
-    self_drive = st.checkbox("Self-Drive Option (Include Car Rental & Tolls)", value=False)
-
-    # Infinite budget as default
-    no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
-
-    if not no_budget:
-        budget = st.number_input(
-            "Budget in Singapore Dollars (SGD / S$)",
-            min_value=100.0,
-            max_value=500000.0,
-            value=3000.0,
-            step=100.0,
-            format="%.2f",
-        )
-    else:
-        budget = 0.0
-        st.caption("ℹ️ Unlimited budget mode active. Agents will focus on best experiences.")
-
     from datetime import date, timedelta
-    default_start = date.today()
-    default_end = default_start + timedelta(days=4)
+    default_start = surprise_data["dates_tuple"][0] if surprise_data else date.today()
+    default_end = surprise_data["dates_tuple"][1] if surprise_data else (default_start + timedelta(days=4))
+    
     selected_dates = st.date_input(
         "Travel Dates",
         value=(default_start, default_end),
         min_value=date.today(),
-        help="Select your trip start and end dates.",
     )
 
     if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
@@ -275,7 +256,9 @@ with st.sidebar:
     st.caption(f"📅 Duration: **{num_days} Day{'s' if num_days > 1 else ''}** ({dates_str})")
     dates = dates_str
 
-    st.markdown("### 🎭 Traveler Persona & Preferences")
+    st.markdown("---")
+    st.markdown("## 🎭 2. Persona & Agent Directives")
+
     saved_prof = st.session_state.user_profile.get("saved_persona", {})
     saved_label = saved_prof.get("label", "⭐ Saved Persona")
 
@@ -288,12 +271,25 @@ with st.sidebar:
         "🎒 Budget Backpacker": "backpacker",
         "🎨 Custom Persona...": "custom",
     }
-    persona_display = st.radio(
-        "Select Persona",
-        options=list(persona_options.keys()),
-        index=0,
-    )
+
+    default_persona_idx = 0
+    if surprise_data:
+        p_key = surprise_data["persona"]
+        for idx, (lbl, k) in enumerate(persona_options.items()):
+            if k == p_key:
+                default_persona_idx = idx
+                break
+
+    persona_display = st.radio("Select Persona Profile", options=list(persona_options.keys()), index=default_persona_idx)
     persona = persona_options[persona_display]
+
+    self_drive = st.checkbox("Self-Drive (Include Car Rental)", value=surprise_data["self_drive"] if surprise_data else False)
+    no_budget = st.checkbox("Infinite / Flexible Budget (No Limit)", value=True)
+
+    if not no_budget:
+        budget = st.number_input("Budget in SGD (S$)", min_value=100.0, value=3000.0, step=100.0, format="%.2f")
+    else:
+        budget = 0.0
 
     custom_profile = None
     if persona == "saved":
@@ -1035,33 +1031,154 @@ elif "current_result" in st.session_state and st.session_state.current_result:
             use_container_width=True,
         )
 else:
-    # ── Landing state ─────────────────────────────────────────────────────
-    col1, col2, col3 = st.columns(3)
+    # ── Interactive Landing & Guided Plan Assistant ───────────────────────
+    st.markdown("### 🌟 Welcome to Travel Buddy — Undecided? We've Got You!")
+    
+    land_tab_guided, land_tab_surprise, land_tab_features = st.tabs([
+        "💬 Guided Plan With Me (Interactive Assistant)",
+        "🎲 Surprise Me! (Seasonal Inspiration)",
+        "✨ Key Features & Architecture",
+    ])
 
-    with col1:
-        st.markdown("""
-        <div class="result-card">
-            <h3>🤖 4 Collaborative Agents</h3>
-            <p>Sightseeing, Food & Retail, Hospitality, and specialized Purchasing & Booking Expert.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    with land_tab_guided:
+        st.markdown("#### 🤖 Chat with Travel Buddy Concierge")
+        st.caption("Not sure where to go or how to plan your trip? Chat with our AI concierge below to discover destination ideas, budget recommendations, and travel styles!")
 
-    with col2:
-        st.markdown("""
-        <div class="result-card">
-            <h3>✈️ Group Travelers & Self-Drive</h3>
-            <p>Customizable Adults, Children, and Infant counts + optional car rental & flight costs in SGD.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        if "guided_messages" not in st.session_state:
+            st.session_state.guided_messages = [
+                {
+                    "role": "assistant",
+                    "content": "👋 **Hello Traveler!** I'm your AI Travel Concierge. Tell me a bit about what you're looking for:\n\n- What's the main vibe you want? *(e.g. relaxing beach retreat, food & city adventure, scenic nature, family fun)*\n- Who is traveling with you?\n- Any preferred region or season?"
+                }
+            ]
 
-    with col3:
-        st.markdown("""
-        <div class="result-card">
-            <h3>📍 Multi-Location Itinerary Maps</h3>
-            <p>Geocodes & plots pins for ALL day-by-day itinerary attractions on Pydeck & OpenStreetMap.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        for msg in st.session_state.guided_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
-    st.markdown("---")
-    st.markdown("### 🚀 Getting Started")
-    st.info("👈 **Configure travelers, destination & persona in the sidebar and click 'Plan My Trip' to generate your AI-crafted itinerary!**")
+        guided_user_input = st.chat_input("Tell me what travel vibe or destination idea you have in mind...", key="guided_chat_input")
+        if guided_user_input:
+            st.session_state.guided_messages.append({"role": "user", "content": guided_user_input})
+            with st.chat_message("user"):
+                st.markdown(guided_user_input)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Concierge is thinking & searching best recommendations..."):
+                    try:
+                        from langchain_core.messages import HumanMessage
+                        from core.surprise import get_current_season
+                        curr_season = get_current_season()
+                        
+                        prompt = (
+                            f"You are a friendly, highly knowledgeable AI Travel Concierge helping an undecided traveler.\n"
+                            f"Current Season: {curr_season.capitalize()}\n"
+                            f"User Query: {guided_user_input}\n\n"
+                            f"Chat History:\n" + "\n".join(f"{m['role']}: {m['content']}" for m in st.session_state.guided_messages[-4:]) + "\n\n"
+                            f"Respond warmly and recommend 2-3 specific destinations matching their vibe.\n"
+                            f"At the bottom of your response, specify a recommended trip package in this EXACT format:\n"
+                            f"RECOMMENDED_DESTINATION: [City, Country]\n"
+                            f"RECOMMENDED_PERSONA: [family / couple / single / business / backpacker]\n"
+                            f"RECOMMENDED_DAYS: [number of days]\n"
+                        )
+
+                        if gemini_key:
+                            from langchain_google_genai import ChatGoogleGenerativeAI
+                            llm_guided = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.7, google_api_key=gemini_key)
+                            resp = llm_guided.invoke([HumanMessage(content=prompt)])
+                            reply_text = resp.content if isinstance(resp.content, str) else str(resp.content)
+                        else:
+                            reply_text = (
+                                "Based on your preferences, I recommend:\n"
+                                "1. **Tokyo, Japan** (Urban food, culture, tech)\n"
+                                "2. **Bali, Indonesia** (Tropical relaxation & beach sunsets)\n\n"
+                                "RECOMMENDED_DESTINATION: Tokyo, Japan\n"
+                                "RECOMMENDED_PERSONA: couple\n"
+                                "RECOMMENDED_DAYS: 5"
+                            )
+
+                        import re
+                        dest_m = re.search(r"RECOMMENDED_DESTINATION:\s*(.*)", reply_text)
+                        clean_reply = re.sub(r"RECOMMENDED_.*", "", reply_text).strip()
+
+                        st.markdown(clean_reply)
+                        st.session_state.guided_messages.append({"role": "assistant", "content": clean_reply})
+
+                        if dest_m:
+                            rec_dest = dest_m.group(1).strip()
+                            st.markdown("---")
+                            if st.button(f"🚀 Launch Trip Plan for {rec_dest}", type="primary", use_container_width=True, key=f"launch_guided_{rec_dest}"):
+                                from datetime import date, timedelta
+                                st.session_state.surprise_pick = {
+                                    "title": f"Guided Pick: {rec_dest}",
+                                    "reason": "Recommended by AI Travel Concierge",
+                                    "destination": rec_dest,
+                                    "origin": "Singapore",
+                                    "persona": "couple",
+                                    "self_drive": False,
+                                    "no_budget": True,
+                                    "dates_tuple": (date.today() + timedelta(days=14), date.today() + timedelta(days=18)),
+                                    "duration_days": 5
+                                }
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Concierge error: {e}")
+
+    with land_tab_surprise:
+        st.markdown("#### 🎲 Seasonal Top Pick Inspiration")
+        st.caption("Click any seasonal package below to auto-fill specs and launch your trip plan instantly!")
+
+        from core.surprise import SEASONAL_PACKAGES, get_current_season
+        from datetime import date, timedelta
+        season_now = get_current_season()
+
+        col_p1, col_p2 = st.columns(2)
+        season_picks = SEASONAL_PACKAGES.get(season_now, SEASONAL_PACKAGES["summer"])
+
+        for idx, p in enumerate(season_picks):
+            col_target = col_p1 if idx % 2 == 0 else col_p2
+            with col_target:
+                st.markdown(f"### {p['title']}")
+                st.markdown(f"**Season:** {season_now.capitalize()} • **Duration:** {p['duration_days']} Days")
+                st.markdown(f"_{p['reason']}_")
+                if st.button(f"🚀 Plan Trip to {p['destination']}", key=f"btn_pick_{idx}", use_container_width=True):
+                    start_d = date.today() + timedelta(days=14)
+                    end_d = start_d + timedelta(days=p['duration_days'] - 1)
+                    st.session_state.surprise_pick = {
+                        "title": p["title"],
+                        "reason": p["reason"],
+                        "destination": p["destination"],
+                        "origin": p["origin"],
+                        "persona": p["persona"],
+                        "self_drive": p["self_drive"],
+                        "no_budget": True,
+                        "dates_tuple": (start_d, end_d),
+                        "duration_days": p["duration_days"]
+                    }
+                    st.rerun()
+                st.markdown("---")
+
+    with land_tab_features:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("""
+            <div class="result-card">
+                <h3>🤖 4 Collaborative Agents</h3>
+                <p>Sightseeing, Food & Retail, Hospitality, and specialized Purchasing & Booking Expert.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown("""
+            <div class="result-card">
+                <h3>✈️ Group Travelers & Self-Drive</h3>
+                <p>Customizable Adults, Children, and Infant counts + optional car rental & flight costs in SGD.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown("""
+            <div class="result-card">
+                <h3>📍 Multi-Location Itinerary Maps</h3>
+                <p>Geocodes & plots pins for ALL day-by-day itinerary attractions on Pydeck & OpenStreetMap.</p>
+            </div>
+            """, unsafe_allow_html=True)
