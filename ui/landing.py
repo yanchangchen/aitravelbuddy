@@ -36,9 +36,10 @@ def render_landing_view(gemini_key):
                 }
             ]
 
+        from core.utils import ensure_str
         for msg in st.session_state.guided_messages:
             with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+                st.markdown(ensure_str(msg["content"]))
 
         guided_user_input = st.chat_input("Tell me what travel vibe or destination idea you have in mind...", key="guided_chat_input")
         if guided_user_input:
@@ -66,9 +67,10 @@ def render_landing_view(gemini_key):
 
                         if gemini_key:
                             from langchain_google_genai import ChatGoogleGenerativeAI
+                            from core.utils import ensure_str
                             llm_guided = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.7, google_api_key=gemini_key)
                             resp = llm_guided.invoke([HumanMessage(content=prompt)])
-                            reply_text = resp.content if isinstance(resp.content, str) else str(resp.content)
+                            reply_text = ensure_str(resp.content)
                         else:
                             reply_text = (
                                 "Based on your preferences, I recommend:\n"
@@ -79,28 +81,46 @@ def render_landing_view(gemini_key):
                                 "RECOMMENDED_DAYS: 5"
                             )
 
-                        dest_m = re.search(r"RECOMMENDED_DESTINATION:\s*(.*)", reply_text)
-                        clean_reply = re.sub(r"RECOMMENDED_.*", "", reply_text).strip()
+                        dest_m = re.search(r"RECOMMENDED_DESTINATION:\s*([^\n\r\"'}]+)", reply_text, re.IGNORECASE)
+                        persona_m = re.search(r"RECOMMENDED_PERSONA:\s*([^\n\r\"'}]+)", reply_text, re.IGNORECASE)
+                        days_m = re.search(r"RECOMMENDED_DAYS:\s*(\d+)", reply_text, re.IGNORECASE)
+
+                        clean_reply = re.sub(r"RECOMMENDED_DESTINATION:.*", "", reply_text, flags=re.IGNORECASE)
+                        clean_reply = re.sub(r"RECOMMENDED_PERSONA:.*", "", clean_reply, flags=re.IGNORECASE)
+                        clean_reply = re.sub(r"RECOMMENDED_DAYS:.*", "", clean_reply, flags=re.IGNORECASE).strip()
 
                         st.markdown(clean_reply)
                         st.session_state.guided_messages.append({"role": "assistant", "content": clean_reply})
 
                         if dest_m:
                             rec_dest = dest_m.group(1).strip()
+                            rec_persona = persona_m.group(1).strip() if persona_m else "couple"
+                            rec_days = int(days_m.group(1).strip()) if days_m else 5
+
                             st.markdown("---")
-                            if st.button(f"🚀 Launch Trip Plan for {rec_dest}", type="primary", use_container_width=True, key=f"launch_guided_{rec_dest}"):
-                                st.session_state.surprise_pick = {
-                                    "title": f"Guided Pick: {rec_dest}",
-                                    "reason": "Recommended by AI Travel Concierge",
-                                    "destination": rec_dest,
-                                    "origin": "Singapore",
-                                    "persona": "couple",
-                                    "self_drive": False,
-                                    "no_budget": True,
-                                    "dates_tuple": (date.today() + timedelta(days=14), date.today() + timedelta(days=18)),
-                                    "duration_days": 5
-                                }
-                                st.rerun()
+                            st.info(f"✨ **AI Concierge Pick:** {rec_dest} ({rec_days} Days)")
+
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button(f"🚀 Apply Destination & Launch for {rec_dest}", type="primary", use_container_width=True, key=f"launch_guided_full_{rec_dest}"):
+                                    st.session_state.surprise_pick = {
+                                        "title": f"Guided Pick: {rec_dest}",
+                                        "reason": f"Recommended by AI Travel Concierge for {rec_dest}",
+                                        "destination": rec_dest,
+                                        "origin": "Singapore",
+                                        "persona": rec_persona,
+                                        "self_drive": False,
+                                        "no_budget": True,
+                                        "dates_tuple": (date.today() + timedelta(days=14), date.today() + timedelta(days=14 + rec_days - 1)),
+                                        "duration_days": rec_days
+                                    }
+                                    st.rerun()
+                            with col_btn2:
+                                if st.button(f"🎨 Apply Vibe Only to My Current Destination", use_container_width=True, key=f"launch_guided_vibe_{rec_dest}", help="Applies this concierge recommendation style to your current destination without changing your destination!"):
+                                    st.session_state.user_profile["saved_persona"]["key"] = rec_persona
+                                    st.session_state.user_profile["saved_persona"]["label"] = f"🌟 Guided Concierge Vibe ({rec_dest})"
+                                    st.toast(f"🎨 Applied Concierge Vibe to your current destination!")
+                                    st.rerun()
                     except Exception as e:
                         st.error(f"Concierge error: {e}")
 
