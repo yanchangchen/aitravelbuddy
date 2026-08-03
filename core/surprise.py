@@ -1,12 +1,14 @@
 """Seasonal destination recommendation engine for Travel Buddy."""
 
+import re
+import json
 import random
 from datetime import date, timedelta
 from .logger import get_logger
 
 logger = get_logger("surprise")
 
-# Curated top global destinations categorized by season
+# Curated top global destinations categorized by season (auto-refreshes every 3 months)
 SEASONAL_PACKAGES = {
     "summer": [
         {
@@ -140,7 +142,7 @@ SEASONAL_PACKAGES = {
 
 
 def get_current_season() -> str:
-    """Return current season string based on current month."""
+    """Return current season string based on current calendar month (refreshes every 3 months)."""
     month = date.today().month
     if month in (12, 1, 2):
         return "winter"
@@ -150,6 +152,52 @@ def get_current_season() -> str:
         return "summer"
     else:
         return "autumn"
+
+
+def fetch_live_seasonal_picks(season: str = None, gemini_key: str = None) -> list:
+    """Fetch live trending seasonal travel suggestions using Gemini LLM and current year information."""
+    s = season or get_current_season()
+    year = date.today().year
+
+    if gemini_key:
+        try:
+            from langchain_core.messages import HumanMessage
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            from .utils import ensure_str
+
+            prompt = (
+                f"You are a trend-setting travel curator. Generate 3 unique, top trending seasonal travel packages for {s.capitalize()} {year}.\n"
+                f"For each package, provide a JSON array of 3 objects with EXACTLY these fields:\n"
+                f"[\n"
+                f"  {{\n"
+                f'    "title": "Emoji + Catchy Title (e.g. 🌊 Amalfi Coast Cliffside & Lemon Groves)",\n'
+                f'    "destination": "City, Country",\n'
+                f'    "origin": "Singapore",\n'
+                f'    "persona": "couple",\n'
+                f'    "persona_label": "💑 Couple\'s Getaway",\n'
+                f'    "self_drive": false,\n'
+                f'    "reason": "Compelling 1-sentence reason why this destination is top-trending for {s.capitalize()} {year}.",\n'
+                f'    "duration_days": 5\n'
+                f"  }}\n"
+                f"]\n\n"
+                f"Return ONLY valid JSON wrapped in ```json ... ```."
+            )
+
+            llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.8, google_api_key=gemini_key)
+            resp = llm.invoke([HumanMessage(content=prompt)])
+            text = ensure_str(resp.content)
+
+            json_match = re.search(r"```json\s*(\[.*?\])\s*```", text, re.DOTALL)
+            if json_match:
+                items = json.loads(json_match.group(1))
+                if isinstance(items, list) and len(items) > 0:
+                    logger.info(f"Fetched {len(items)} live seasonal picks for season={s}")
+                    return items
+        except Exception as e:
+            logger.warning(f"Failed to fetch live seasonal picks via LLM: {e}")
+
+    # Fallback to curated packages
+    return SEASONAL_PACKAGES.get(s, SEASONAL_PACKAGES["summer"])
 
 
 def get_seasonal_surprise(override_season: str = None) -> dict:

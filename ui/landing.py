@@ -234,38 +234,59 @@ def render_landing_view(gemini_key):
 
     with land_tab_surprise:
         st.markdown("#### 🎲 Seasonal Top Pick Inspiration")
-        st.caption("Click any seasonal package below to auto-fill specs and launch your trip plan instantly!")
+        st.caption("Auto-refreshes every 3 months based on real-world calendar seasons. Click 'Fetch Live AI Updates' for on-demand new seasonal suggestions!")
 
         season_now = get_current_season()
-        col_p1, col_p2 = st.columns(2)
-        season_picks = SEASONAL_PACKAGES.get(season_now, SEASONAL_PACKAGES["summer"])
+        year_now = date.today().year
 
+        col_hdr1, col_hdr2 = st.columns([3, 1])
+        with col_hdr1:
+            st.info(f"📅 **Current Season:** {season_now.capitalize()} {year_now} *(Auto-switches every 3 months)*")
+        with col_hdr2:
+            if st.button("🔄 Fetch Live AI Updates", type="secondary", use_container_width=True, help="Queries live AI search for new trending travel destinations for this season!"):
+                with st.spinner("Fetching live AI trending seasonal picks..."):
+                    from core.surprise import fetch_live_seasonal_picks
+                    live_picks = fetch_live_seasonal_picks(season_now, gemini_key)
+                    if "custom_seasonal_picks" not in st.session_state:
+                        st.session_state.custom_seasonal_picks = {}
+                    st.session_state.custom_seasonal_picks[season_now] = live_picks
+                    st.toast(f"✨ Refreshed 3 brand new live seasonal picks for {season_now.capitalize()} {year_now}!")
+                    st.rerun()
+
+        # Retrieve custom live picks if user initiated a refresh, else use curated packages
+        if "custom_seasonal_picks" in st.session_state and season_now in st.session_state.custom_seasonal_picks:
+            season_picks = st.session_state.custom_seasonal_picks[season_now]
+        else:
+            season_picks = SEASONAL_PACKAGES.get(season_now, SEASONAL_PACKAGES["summer"])
+
+        col_p1, col_p2 = st.columns(2)
         for idx, p in enumerate(season_picks):
             col_target = col_p1 if idx % 2 == 0 else col_p2
             with col_target:
                 st.markdown(f"### {p['title']}")
-                st.markdown(f"**Season:** {season_now.capitalize()} • **Duration:** {p['duration_days']} Days")
+                st.markdown(f"**Season:** {season_now.capitalize()} • **Duration:** {p.get('duration_days', 5)} Days")
                 st.markdown(f"_{p['reason']}_")
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
                     if st.button(f"🚀 Apply Destination & Vibe", key=f"btn_pick_full_{idx}", use_container_width=True):
                         start_d = date.today() + timedelta(days=14)
-                        end_d = start_d + timedelta(days=p['duration_days'] - 1)
+                        duration = p.get('duration_days', 5)
+                        end_d = start_d + timedelta(days=duration - 1)
                         st.session_state.surprise_pick = {
                             "title": p["title"],
                             "reason": p["reason"],
                             "destination": p["destination"],
-                            "origin": p["origin"],
-                            "persona": p["persona"],
-                            "self_drive": p["self_drive"],
+                            "origin": p.get("origin", "Singapore"),
+                            "persona": p.get("persona", "couple"),
+                            "self_drive": p.get("self_drive", False),
                             "no_budget": True,
                             "dates_tuple": (start_d, end_d),
-                            "duration_days": p["duration_days"]
+                            "duration_days": duration
                         }
                         st.rerun()
                 with col_b2:
                     if st.button(f"🎨 Apply Vibe Only", key=f"btn_pick_vibe_{idx}", use_container_width=True, help="Applies this seasonal persona style to your current destination without changing your destination!"):
-                        st.session_state.user_profile["saved_persona"]["key"] = p["persona"]
+                        st.session_state.user_profile["saved_persona"]["key"] = p.get("persona", "couple")
                         st.session_state.user_profile["saved_persona"]["label"] = f"🌟 {p['title']}"
                         st.toast(f"🎨 Applied '{p['title']}' vibe to your current destination!")
                         st.rerun()
