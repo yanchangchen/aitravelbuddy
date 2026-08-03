@@ -67,16 +67,61 @@ def geocode_location(location_name: str):
     return None
 
 
-def extract_all_itinerary_locations(itinerary_text: str, destination: str) -> list:
-    """Extract day-by-day venue/attraction names from itinerary text and geocode them."""
-    locations = []
-    current_day = "Day 1"
-    dest_coords = geocode_location(destination) or (35.6762, 139.6503)
+CITY_COORDINATES = {
+    "tokyo": (35.6762, 139.6503),
+    "kyoto": (35.0116, 135.7681),
+    "sapporo": (43.0618, 141.3545),
+    "hokkaido": (43.0618, 141.3545),
+    "zurich": (47.3769, 8.5417),
+    "interlaken": (46.6863, 7.8632),
+    "switzerland": (46.8182, 8.2275),
+    "chengdu": (30.5728, 104.0668),
+    "qingdao": (36.0671, 120.3826),
+    "beijing": (39.9042, 116.4074),
+    "shanghai": (31.2304, 121.4737),
+    "bali": (-8.4095, 115.1889),
+    "singapore": (1.3521, 103.8198),
+    "paris": (48.8566, 2.3522),
+    "london": (51.5074, -0.1278),
+    "seoul": (37.5665, 126.9780),
+    "reykjavik": (64.1466, -21.9426),
+    "iceland": (64.1466, -21.9426),
+    "amsterdam": (52.3676, 4.9041),
+}
 
+
+def get_city_fallback_coords(destination: str) -> tuple:
+    """Get fallback (lat, lon) for major destinations if Nominatim geocoding times out."""
+    clean = destination.lower()
+    for key, coords in CITY_COORDINATES.items():
+        if key in clean:
+            return coords
+    return (35.6762, 139.6503)
+
+
+def extract_all_plan_locations(result_input, destination: str) -> list:
+    """Extract day-by-day sightseeing venues, hotels, and dining locations from agent plan outputs and geocode them."""
+    if isinstance(result_input, dict):
+        itinerary_text = result_input.get("itinerary", "")
+        hotel_text = result_input.get("hotel_recommendations", "")
+        food_text = result_input.get("food_and_retail", "")
+    else:
+        itinerary_text = str(result_input)
+        hotel_text = ""
+        food_text = ""
+
+    locations = []
+    seen_venues = set()
+
+    # Geocode base city center coords
+    base_coords = geocode_location(destination) or get_city_fallback_coords(destination)
+
+    # 1. Parse Day-by-Day Sightseeing Itinerary
+    current_day = "Day 1"
     lines = itinerary_text.split("\n")
     for line in lines:
         line_str = line.strip()
-        day_match = re.match(r"^##\s*(Day\s*\d+)", line_str, re.IGNORECASE)
+        day_match = re.match(r"^(?:##|###|\*\*)\s*(Day\s*\d+)", line_str, re.IGNORECASE)
         if day_match:
             current_day = day_match.group(1).strip()
             continue
@@ -91,33 +136,109 @@ def extract_all_itinerary_locations(itinerary_text: str, destination: str) -> li
             sub_venues = [v.strip() for v in re.split(r"&| and ", raw_venue) if v.strip()]
 
             for venue in sub_venues:
-                if len(venue) > 2 and not venue.lower().startswith("daily transport"):
-                    search_query = f"{venue}, {destination}"
-                    coords = geocode_location(search_query)
-                    if not coords:
-                        coords = geocode_location(venue)
+                v_clean = re.sub(r"[*_#]", "", venue).strip()
+                if len(v_clean) > 2 and not v_clean.lower().startswith("daily transport") and v_clean.lower() not in seen_venues:
+                    seen_venues.add(v_clean.lower())
+                    coords = geocode_location(f"{v_clean}, {destination}") or geocode_location(v_clean)
+                    is_geocoded = coords is not None
 
-                    lat, lon = coords if coords else (dest_coords[0], dest_coords[1])
+                    if not coords:
+                        offset_lat = (hash(v_clean) % 1000 - 500) * 0.00003
+                        offset_lon = (hash(v_clean + "lon") % 1000 - 500) * 0.00003
+                        coords = (base_coords[0] + offset_lat, base_coords[1] + offset_lon)
+
                     locations.append({
+                        "category": "Sightseeing",
                         "day": current_day,
-                        "title": venue,
-                        "query": search_query,
-                        "lat": lat,
-                        "lon": lon,
-                        "geocoded": coords is not None
+                        "title": v_clean,
+                        "query": f"{v_clean}, {destination}",
+                        "lat": coords[0],
+                        "lon": coords[1],
+                        "geocoded": is_geocoded,
+                        "color": [255, 75, 75, 220],
                     })
 
+    # 2. Parse Hotels
+    if hotel_text:
+        hotel_lines = hotel_text.split("\n")
+        for line in hotel_lines:
+            line_str = line.strip()
+            hotel_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
+            if hotel_match:
+                h_name = hotel_match.group(1).strip()
+                h_clean = re.sub(r"[*_#]", "", h_name).strip()
+                if len(h_clean) > 3 and any(kw in h_clean.lower() for kw in ["hotel", "resort", "ryokan", "inn", "stay", "suite", "lodge"]):
+                    if h_clean.lower() not in seen_venues:
+                        seen_venues.add(h_clean.lower())
+                        coords = geocode_location(f"{h_clean}, {destination}") or geocode_location(h_clean)
+                        is_geocoded = coords is not None
+
+                        if not coords:
+                            offset_lat = (hash(h_clean) % 1000 - 500) * 0.00003
+                            offset_lon = (hash(h_clean + "lon") % 1000 - 500) * 0.00003
+                            coords = (base_coords[0] + offset_lat, base_coords[1] + offset_lon)
+
+                        locations.append({
+                            "category": "Hotel",
+                            "day": "Hotel",
+                            "title": h_clean,
+                            "query": f"{h_clean}, {destination}",
+                            "lat": coords[0],
+                            "lon": coords[1],
+                            "geocoded": is_geocoded,
+                            "color": [50, 130, 246, 220],
+                        })
+
+    # 3. Parse Dining & Food
+    if food_text:
+        food_lines = food_text.split("\n")
+        for line in food_lines:
+            line_str = line.strip()
+            food_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
+            if food_match:
+                f_name = food_match.group(1).strip()
+                f_clean = re.sub(r"[*_#]", "", f_name).strip()
+                if len(f_clean) > 3 and f_clean.lower() not in seen_venues:
+                    if any(kw in f_clean.lower() for kw in ["restaurant", "cafe", "bistro", "ramen", "market", "tofu", "food", "dining", "grill", "tea", "house", "bar", "noodle"]):
+                        seen_venues.add(f_clean.lower())
+                        coords = geocode_location(f"{f_clean}, {destination}") or geocode_location(f_clean)
+                        is_geocoded = coords is not None
+
+                        if not coords:
+                            offset_lat = (hash(f_clean) % 1000 - 500) * 0.00003
+                            offset_lon = (hash(f_clean + "lon") % 1000 - 500) * 0.00003
+                            coords = (base_coords[0] + offset_lat, base_coords[1] + offset_lon)
+
+                        locations.append({
+                            "category": "Dining & Retail",
+                            "day": "Dining",
+                            "title": f_clean,
+                            "query": f"{f_clean}, {destination}",
+                            "lat": coords[0],
+                            "lon": coords[1],
+                            "geocoded": is_geocoded,
+                            "color": [255, 165, 0, 220],
+                        })
+
+    # Fallback to destination city center if empty
     if not locations:
         locations.append({
+            "category": "City Center",
             "day": "Day 1",
             "title": destination,
             "query": destination,
-            "lat": dest_coords[0],
-            "lon": dest_coords[1],
-            "geocoded": True
+            "lat": base_coords[0],
+            "lon": base_coords[1],
+            "geocoded": True,
+            "color": [255, 75, 75, 220],
         })
 
     return locations
+
+
+def extract_all_itinerary_locations(itinerary_text: str, destination: str) -> list:
+    """Backward compatible wrapper for extract_all_plan_locations."""
+    return extract_all_plan_locations(itinerary_text, destination)
 
 
 def get_persona_context(state: dict, persona_profiles: dict) -> str:

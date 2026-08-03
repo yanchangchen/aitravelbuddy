@@ -117,35 +117,35 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
     with tab_itin_map:
         st.markdown(result.get("itinerary", "N/A"))
         st.markdown("---")
-        st.markdown(f"### 📍 Complete Itinerary Map — {res_destination}")
+        st.markdown(f"### 📍 Complete Trip Map — {res_destination}")
 
-        itinerary_text = result.get("itinerary", "")
-        loc_list = extract_all_itinerary_locations(itinerary_text, res_destination)
+        from core.utils import extract_all_plan_locations
+        loc_list = extract_all_plan_locations(result, res_destination)
         df_map = pd.DataFrame(loc_list)
 
         if not df_map.empty:
             mean_lat = df_map["lat"].mean()
             mean_lon = df_map["lon"].mean()
-            st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across all itinerary days.")
+            st.markdown(f"**Mapped Places:** {len(df_map)} venues extracted across sightseeing (🔴), hotels (🔵), and dining (🟠).")
 
             view_state = pdk.ViewState(latitude=mean_lat, longitude=mean_lon, zoom=11, pitch=35)
             layer = pdk.Layer(
                 "ScatterplotLayer",
                 data=df_map,
                 get_position=["lon", "lat"],
-                get_color="[255, 107, 107, 220]",
-                get_radius=400,
+                get_color="color",
+                get_radius=350,
                 pickable=True,
             )
             deck = pdk.Deck(
                 layers=[layer],
                 initial_view_state=view_state,
-                tooltip={"text": "[{day}] {title}"},
+                tooltip={"text": "[{category} • {day}] {title}"},
             )
             st.pydeck_chart(deck)
 
-            with st.expander("📌 View Extracted Itinerary Locations"):
-                st.dataframe(df_map[["day", "title", "lat", "lon"]], use_container_width=True)
+            with st.expander("📌 View All Extracted & Geocoded Plan Locations"):
+                st.dataframe(df_map[["category", "day", "title", "lat", "lon", "geocoded"]], use_container_width=True)
 
         encoded_dest = urllib.parse.quote(res_destination)
         col_gmap, col_osm = st.columns(2)
