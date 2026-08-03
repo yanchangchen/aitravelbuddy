@@ -68,7 +68,8 @@ NODE_LABELS = {
 }
 
 # ── Main Execution Flow ───────────────────────────────────────────────────────
-if inputs["plan_button"]:
+auto_launch = st.session_state.pop("auto_launch_plan", False)
+if inputs["plan_button"] or auto_launch:
     clear_session_logs()
     logger.info(f"Session started for destination='{inputs['destination']}', persona='{inputs['persona']}'")
 
