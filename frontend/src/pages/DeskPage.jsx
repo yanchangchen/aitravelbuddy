@@ -46,6 +46,18 @@ export default function DeskPage() {
       },
       (result) => {
         setPlanResult(result, 'complete');
+        // Auto-save generated trip plan to DB for instant future retrieval
+        const planId = `plan_${Date.now()}`;
+        const datesStr = store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : '7 Days Seasonal';
+        apiClient.saveTripPlan(planId, {
+          destination: store.destination || 'Tokyo, Japan',
+          travelers: (store.numAdults || 2) + (store.numChildren || 1) + (store.numInfants || 0),
+          persona: store.selectedPersona || 'Family',
+          dates: datesStr,
+          state_data: result
+        }).then(() => {
+          console.log('💾 Auto-saved seasonal trip plan to database!');
+        }).catch(err => console.warn('Auto-save error:', err));
       },
       (error) => {
         console.error('Plan stream error:', error);

@@ -63,22 +63,63 @@ export default function LandingPage() {
   const [seasonalPicks, setSeasonalPicks] = useState(INITIAL_SEASONAL_PICKS);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleCardClick = (dest) => {
+  const calculateOptimal7DayDates = (tag, destName) => {
+    const year = new Date().getFullYear();
+    const s = ((tag || '') + ' ' + (destName || '')).toLowerCase();
+    
+    if (s.includes('autumn') || s.includes('fall') || s.includes('momiji')) {
+      return { startStr: `Oct 15, ${year}`, endStr: `Oct 21, ${year}` };
+    } else if (s.includes('winter') || s.includes('snow') || s.includes('ice')) {
+      return { startStr: `Jan 10, ${year + 1}`, endStr: `Jan 16, ${year + 1}` };
+    } else if (s.includes('spring') || s.includes('sakura') || s.includes('tulip') || s.includes('blossom')) {
+      return { startStr: `Apr 05, ${year}`, endStr: `Apr 11, ${year}` };
+    }
+    return { startStr: `Jul 10, ${year}`, endStr: `Jul 16, ${year}` };
+  };
+
+  const handleCardClick = async (dest) => {
+    const targetDest = dest.name || dest.destination;
+    const { startStr, endStr } = calculateOptimal7DayDates(dest.tag, targetDest);
+
     setLogistics({ 
       origin: dest.origin || 'Singapore',
-      destination: dest.name || dest.destination,
+      destination: targetDest,
+      startDate: startStr,
+      endDate: endStr,
+      numAdults: 2,
+      numChildren: 1,
+      numInfants: 0,
       selfDrive: dest.selfDrive || dest.self_drive || false,
       noBudget: true,
       budget: 0
     });
     
-    setPersona(dest.persona || 'Couple', {
-      title: dest.title || dest.name,
-      rules: dest.reason || dest.tag || 'Focus on top seasonal sights, local food markets, and boutique lodging.',
+    setPersona('Family', {
+      title: dest.title || targetDest,
+      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping.`,
       tempo: 'Medium',
-      dining: 'Foodie & Street Food',
-      lodging: 'Boutique & Authentic'
+      dining: 'Agent Recommended Sights & Food',
+      lodging: 'Boutique & Family Stays'
     });
+
+    // Check if pre-computed saved trip already exists in database
+    try {
+      const savedTrips = await apiClient.getSavedTrips();
+      if (savedTrips && Array.isArray(savedTrips)) {
+        const primaryCity = targetDest.split(',')[0].trim().toLowerCase();
+        const existing = savedTrips.find(t => 
+          t.destination && t.destination.toLowerCase().includes(primaryCity)
+        );
+        if (existing) {
+          console.log('💾 Found pre-computed seasonal trip in database! Loading from cache:', existing);
+          useTripStore.getState().loadSavedTrip(existing);
+          navigate('/desk');
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not query saved trips cache:', e);
+    }
     
     setAutoRunPlan(true);
     navigate('/desk');

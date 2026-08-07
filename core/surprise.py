@@ -345,17 +345,36 @@ def fetch_live_seasonal_picks(season: str = None, gemini_key: str = None) -> lis
     return SEASONAL_PACKAGES.get(s, SEASONAL_PACKAGES["summer"])
 
 
+def get_seasonal_default_dates(season: str = None) -> tuple:
+    """Calculate an optimal 7-day date window within the specified 3-month season."""
+    s = (season or get_current_season()).lower()
+    year = date.today().year
+
+    if s == "spring":
+        start_date = date(year, 4, 5)
+    elif s == "summer":
+        start_date = date(year, 7, 10)
+    elif s == "autumn":
+        start_date = date(year, 10, 15)
+    elif s == "winter":
+        # If current month is past Feb, winter belongs to next year
+        w_year = year + 1 if date.today().month > 2 else year
+        start_date = date(w_year, 1, 10)
+    else:
+        start_date = date.today() + timedelta(days=14)
+
+    end_date = start_date + timedelta(days=6) # 7 days total inclusive
+    dates_str = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+    return start_date, end_date, dates_str
+
+
 def get_seasonal_surprise(override_season: str = None) -> dict:
-    """Return a pre-configured surprise travel package based on the current season."""
+    """Return a pre-configured surprise travel package based on the current season with 7-day optimal dates."""
     season = override_season or get_current_season()
     packages = SEASONAL_PACKAGES.get(season, SEASONAL_PACKAGES["summer"])
     pick = random.choice(packages)
 
-    # Calculate optimal travel dates starting 2 weeks from today
-    start_date = date.today() + timedelta(days=14)
-    end_date = start_date + timedelta(days=pick["duration_days"] - 1)
-
-    dates_str = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+    start_date, end_date, dates_str = get_seasonal_default_dates(season)
 
     result = {
         "title": pick["title"],
@@ -363,6 +382,9 @@ def get_seasonal_surprise(override_season: str = None) -> dict:
         "season": season.capitalize(),
         "destination": pick["destination"],
         "origin": pick["origin"],
+        "num_adults": 2,
+        "num_children": 1,
+        "num_infants": 0,
         "persona": pick["persona"],
         "persona_label": pick["persona_label"],
         "self_drive": pick["self_drive"],
@@ -370,7 +392,7 @@ def get_seasonal_surprise(override_season: str = None) -> dict:
         "budget": 0.0,
         "dates_tuple": (start_date, end_date),
         "dates_str": dates_str,
-        "num_days": pick["duration_days"],
+        "num_days": 7,
     }
-    logger.info(f"Generated seasonal surprise pick: '{pick['title']}' for season={season}")
+    logger.info(f"Generated seasonal surprise pick: '{pick['title']}' for season={season} (7 days: {dates_str})")
     return result
