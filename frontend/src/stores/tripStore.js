@@ -64,7 +64,8 @@ export const useTripStore = create((set) => ({
   updatePartialResult: (nodeData) => set((state) => ({
     partialResult: typeof nodeData === 'object' ? { ...state.partialResult, ...nodeData } : state.partialResult
   })),
-  startPlanning: () => set((state) => ({ 
+  setConciergeGreeting: (msg) => set({ conciergeMessages: [{ role: 'ai', content: msg }] }),
+  startPlanning: (customGreeting) => set((state) => ({ 
     planStatus: 'planning', 
     planResult: null, 
     partialResult: {}, 
@@ -73,10 +74,10 @@ export const useTripStore = create((set) => ({
     overallProgress: 0, 
     selectedLocation: null, 
     autoRunPlan: false,
-    conciergeMessages: [{ 
+    conciergeMessages: customGreeting ? [{ role: 'ai', content: customGreeting }] : (state.conciergeMessages && state.conciergeMessages.length > 1 ? state.conciergeMessages : [{ 
       role: 'ai', 
       content: `Hello! I am Travel Buddy — your global travel AI concierge. I see we are planning a 5-day trip to ${state.destination || 'your destination'}! How can I help tailor your itinerary today?` 
-    }]
+    }])
   })),
   stopPlanning: () => set((state) => {
     if (state.cancelStreamFn) {

@@ -79,12 +79,14 @@ export default function LandingPage() {
 
   const handleCardClick = async (dest) => {
     const targetDest = dest.name || dest.title || 'Tokyo, Japan';
+    const tag = dest.tag || 'Seasonal Pick';
+    const reason = dest.reason || 'Peak seasonal weather and local food highlights.';
     
     setLogistics({
       origin: 'Singapore',
       destination: targetDest,
       startDate: '2026-11-15',
-      endDate: '2026-11-22',
+      endDate: '2026-11-20',
       currency: 'SGD',
       numAdults: 2,
       numChildren: 1,
@@ -96,12 +98,20 @@ export default function LandingPage() {
     
     setPersona('Family', {
       title: dest.title || targetDest,
-      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping in ${targetDest}.`,
+      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping in ${targetDest} during ${tag}.`,
       tempo: 'Medium',
       dining: 'Agent Recommended Sights & Food',
       lodging: 'Boutique & Family Stays'
     });
 
+    const seasonalGreeting = `✨ Welcome to your ${targetDest} (${tag}) Seasonal Escape! 🌍 I'm Travel Buddy, your global AI travel concierge.\n\n` +
+      `For this 5-day trip, I've configured our collaborative AI agents with these seasonal highlights:\n` +
+      `📍 Destination: ${targetDest}\n` +
+      `🌟 Seasonal Vibe: ${tag} — ${reason}\n` +
+      `👥 Travelers: 2 Adults, 1 Child (Origin: Singapore | SGD Budget: Flexible)\n\n` +
+      `Our multi-agent pipeline is building your live itinerary right now! While they research, what are your top priorities for ${targetDest} (e.g. food, relaxation, photography, or culture)?`;
+
+    useTripStore.getState().setConciergeGreeting(seasonalGreeting);
     setAutoRunPlan(true);
     navigate('/desk');
   };
