@@ -9,7 +9,7 @@ export default function RightPanel() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)' }}>
-        <span style={{ fontWeight: 600 }}>AI Concierge Chat</span>
+        <span style={{ fontWeight: 600 }}>Travel Buddy (AI Concierge)</span>
         <button className="btn-icon" onClick={toggleRightPanel}>
           <PanelRightClose size={20} />
         </button>

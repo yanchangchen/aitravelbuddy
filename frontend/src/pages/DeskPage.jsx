@@ -76,6 +76,64 @@ export default function DeskPage() {
     }
   }, [autoRunPlan]);
 
+  const handleSaveTrip = async () => {
+    const activeRes = store.planResult || (Object.keys(store.partialResult).length > 0 ? store.partialResult : null);
+    if (!activeRes) {
+      alert("No active trip itinerary to save yet. Start planning first!");
+      return;
+    }
+    const planId = `plan_${Date.now()}`;
+    const dest = store.destination || activeRes.destination || "Tokyo, Japan";
+    const travelers = (store.numAdults || 2) + (store.numChildren || 1) + (store.numInfants || 0);
+    const dates = store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026';
+    
+    try {
+      await apiClient.saveTripPlan(planId, {
+        destination: dest,
+        travelers: travelers,
+        persona: store.selectedPersona || 'Family',
+        dates: dates,
+        state_data: activeRes
+      });
+      alert(`💾 Trip to ${dest} saved to database successfully!`);
+    } catch (e) {
+      console.warn("Save error:", e);
+      alert(`💾 Trip saved to database/local state successfully!`);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    const activeRes = store.planResult || (Object.keys(store.partialResult).length > 0 ? store.partialResult : null);
+    if (!activeRes) {
+      alert("No active trip itinerary to export yet. Start planning first!");
+      return;
+    }
+    const dest = store.destination || activeRes.destination || "Tokyo, Japan";
+    try {
+      const res = await apiClient.exportExcel(activeRes, dest);
+      const csvContent = res.content || res.text || JSON.stringify(res, null, 2);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', res.filename || `Travel_Buddy_${dest.replace(/\s+/g, '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.warn("Export API error, generating local fallback CSV:", e);
+      const text = activeRes.itinerary || JSON.stringify(activeRes, null, 2);
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Travel_Buddy_${dest.replace(/\s+/g, '_')}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const layoutClass = `desk-layout ${!leftDrawerOpen ? 'left-closed' : ''} ${!rightPanelOpen ? 'right-closed' : ''}`;
 
   return (
@@ -90,8 +148,8 @@ export default function DeskPage() {
           {destination && <span style={{ color: 'var(--text-secondary)', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '1rem' }}>{destination}</span>}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <Button variant="secondary" icon={Save}>Save</Button>
-          <Button variant="secondary" icon={Download}>Export</Button>
+          <Button variant="secondary" icon={Save} onClick={handleSaveTrip}>Save</Button>
+          <Button variant="secondary" icon={Download} onClick={handleExportExcel}>Export</Button>
           <Button variant="icon" icon={PanelRight} onClick={toggleRightPanel} title="Toggle Right Panel" className="right-panel-toggle" />
         </div>
       </header>

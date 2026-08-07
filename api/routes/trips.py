@@ -47,6 +47,10 @@ class ExportLocationsRequest(BaseModel):
     result: Dict[str, Any]
     destination: str
 
+class ExportExcelRequest(BaseModel):
+    result: Dict[str, Any]
+    destination: Optional[str] = "Travel_Buddy_Itinerary"
+
 @router.post("/plan")
 async def plan_trip(request_data: TripPlanRequest, request: Request):
     logger.info(f"📥 REST POST /api/trips/plan: destination='{request_data.destination}', persona='{request_data.persona}', dates='{request_data.dates}'")
@@ -180,4 +184,38 @@ async def export_locations(request_data: ExportLocationsRequest):
         )
         return {"locations": locations}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/export/excel")
+async def export_excel(request_data: ExportExcelRequest):
+    try:
+        res = request_data.result
+        dest = request_data.destination or "Travel_Buddy_Itinerary"
+        
+        csv_lines = [
+            f"=== TRAVEL BUDDY ITINERARY: {dest} ===",
+            "",
+            "--- DAY-BY-DAY ITINERARY ---",
+            res.get("itinerary", "N/A"),
+            "",
+            "--- HOTELS & ACCOMMODATIONS ---",
+            res.get("hotel_recommendations", "N/A"),
+            "",
+            "--- DINING & RETAIL HIGHLIGHTS ---",
+            res.get("food_and_retail", "N/A"),
+            "",
+            "--- PURCHASING & BOOKING LOGISTICS ---",
+            res.get("purchasing_guide", "N/A"),
+        ]
+        content = "\n".join(csv_lines)
+        return {
+            "filename": f"Travel_Buddy_{dest.replace(' ', '_')}.csv",
+            "content": content,
+            "itinerary": res.get("itinerary", ""),
+            "hotels": res.get("hotel_recommendations", ""),
+            "dining": res.get("food_and_retail", ""),
+            "purchasing": res.get("purchasing_guide", "")
+        }
+    except Exception as e:
+        logger.error(f"❌ Error generating Excel export: {e}")
         raise HTTPException(status_code=500, detail=str(e))

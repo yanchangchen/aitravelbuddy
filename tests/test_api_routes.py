@@ -110,3 +110,37 @@ def test_websocket_plan_stream(client):
             except Exception:
                 break
         assert len(received_types) > 0
+
+def test_save_trip_endpoint(client):
+    payload = {
+        "destination": "Banff & Lake Louise, Canada",
+        "travelers": 3,
+        "persona": "Family",
+        "dates": "Nov 15 - Nov 20, 2026",
+        "state_data": {
+            "itinerary": "Day 1: Visit Banff National Park",
+            "hotel_recommendations": "Hotel Banff Springs",
+            "food_and_retail": "Local Dining",
+            "purchasing_guide": "Flight Airfare: S$ 600"
+        }
+    }
+    res = client.post("/api/trips/test_plan_999/save", json=payload)
+    assert res.status_code == 200
+    assert res.json()["status"] == "success"
+
+def test_export_excel_endpoint(client):
+    payload = {
+        "result": {
+            "itinerary": "Day 1: Sensoji. Day 2: Fuji.",
+            "hotel_recommendations": "Tokyo Hotel",
+            "food_and_retail": "Ramen Alley",
+            "purchasing_guide": "Airfare & Hotels"
+        },
+        "destination": "Tokyo, Japan"
+    }
+    res = client.post("/api/trips/export/excel", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert "filename" in data
+    assert "content" in data
+    assert "Travel_Buddy" in data["filename"]
