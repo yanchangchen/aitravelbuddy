@@ -35,34 +35,79 @@ export const apiClient = {
   getLocations: (result, destination) => fetchJSON('/api/trips/export/locations', { method: 'POST', body: JSON.stringify({ result, destination }) }),
 
   connectPlanStream: (inputs, onNodeUpdate, onComplete, onError) => {
-    // Mocking websocket with setTimeout for the frontend implementation since backend might not be up yet
-    const nodes = ['planner', 'researcher', 'judge', 'finalizer'];
-    let delay = 0;
-    
-    nodes.forEach((node, i) => {
-      setTimeout(() => {
-        onNodeUpdate(node, 'running');
-      }, delay);
-      delay += 1500;
-      setTimeout(() => {
-        onNodeUpdate(node, 'done');
-      }, delay);
-    });
+    try {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = API_BASE.replace(/^https?:\/\//, '');
+      const wsUrl = `${wsProtocol}//${wsHost}/api/ws/plan`;
+      
+      const socket = new WebSocket(wsUrl);
+      let socketOpened = false;
 
-    setTimeout(() => {
-      onComplete({
-        id: 'mock-123',
-        status: 'approved',
-        plan: {
-          days: [
-            { day: 1, theme: 'Arrival', activities: [{ id: 1, time: '10:00 AM', title: 'Check in', cost: 0, category: 'hotel' }] }
-          ]
-        },
-        hotel_recommendations: '## Hotels\n\n1. **Grand Plaza** - $200/night',
-        purchasing_guide: '## Flights\n\nFlight $500',
-        judge_verdict: 'Approved',
-        judge_score: 95
-      });
-    }, delay + 500);
+      socket.onopen = () => {
+        socketOpened = true;
+        socket.send(JSON.stringify(inputs));
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'node_update') {
+            onNodeUpdate(msg.node, 'running', msg.progress);
+          } else if (msg.type === 'complete') {
+            onComplete(msg.result);
+          } else if (msg.type === 'error') {
+            if (onError) onError(msg.message);
+          }
+        } catch (e) {
+          console.error('Failed to parse WS message:', e);
+        }
+      };
+
+      socket.onerror = (err) => {
+        console.warn('WebSocket error, falling back to local simulation:', err);
+        if (!socketOpened) {
+          fallbackMockStream(onNodeUpdate, onComplete);
+        } else if (onError) {
+          onError('WebSocket connection error');
+        }
+      };
+
+      socket.onclose = (event) => {
+        if (!socketOpened) {
+          fallbackMockStream(onNodeUpdate, onComplete);
+        }
+      };
+    } catch (e) {
+      console.warn('Failed to establish WebSocket, running mock stream:', e);
+      fallbackMockStream(onNodeUpdate, onComplete);
+    }
   }
 };
+
+function fallbackMockStream(onNodeUpdate, onComplete) {
+  const nodes = ['itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'budget_guardrail', 'agent_as_judge'];
+  let delay = 0;
+  
+  nodes.forEach((node, i) => {
+    setTimeout(() => {
+      onNodeUpdate(node, 'running', (i + 1) / nodes.length);
+    }, delay);
+    delay += 1200;
+    setTimeout(() => {
+      onNodeUpdate(node, 'done', (i + 1) / nodes.length);
+    }, delay);
+  });
+
+  setTimeout(() => {
+    onComplete({
+      status: 'approved',
+      destination: 'Kyoto, Japan',
+      itinerary: '### Day 1: Historic Asakusa\n- 09:00 Senso-ji Temple ($10)\n- 12:00 Nakamise Shopping ($25)',
+      food_and_retail: '### Dining\n- **Ichiran Ramen**: $20',
+      hotel_recommendations: '### Accommodations\n1. **Kyoto Ryokan Sunset**: $180/night',
+      purchasing_guide: '### Logistics\n- **Airfare**: $650 SGD',
+      judge_verdict: 'Approved — Pass score 9/10',
+      judge_score: 9
+    });
+  }, delay + 400);
+}

@@ -1,11 +1,53 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button, GlassCard } from '../components/shared';
-import { Map, Zap, Calendar, Heart } from 'lucide-react';
+import { Map, Zap, Calendar, Heart, RefreshCw } from 'lucide-react';
+import { useTripStore } from '../stores/tripStore';
+import { apiClient } from '../api/client';
+
+const INITIAL_SEASONAL_PICKS = [
+  { name: 'Kyoto, Japan', tag: 'Autumn Leaves', persona: 'Couple', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80")' },
+  { name: 'Swiss Alps, Switzerland', tag: 'Winter Wonderland', persona: 'Solo', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1531315630201-bb15abeb1653?w=500&q=80")' },
+  { name: 'Santorini, Greece', tag: 'Summer Escape', persona: 'Couple', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1533105079780-92b9be482077?w=500&q=80")' }
+];
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { setLogistics, setPersona } = useTripStore();
+  const [seasonalPicks, setSeasonalPicks] = useState(INITIAL_SEASONAL_PICKS);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleCardClick = (dest) => {
+    setLogistics({ destination: dest.name });
+    if (dest.persona) {
+      setPersona(dest.persona);
+    }
+    navigate('/desk');
+  };
+
+  const handleRefreshPicks = async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await apiClient.fetchLiveSeasonalPicks();
+      if (data && Array.isArray(data) && data.length > 0) {
+        const formatted = data.slice(0, 3).map((item, idx) => ({
+          name: item.destination || item.name || 'Zurich, Switzerland',
+          tag: item.tagline || item.season || 'Seasonal Pick',
+          persona: item.persona || 'Family',
+          img: INITIAL_SEASONAL_PICKS[idx % 3].img
+        }));
+        setSeasonalPicks(formatted);
+      } else {
+        const fallback = await apiClient.getSeasonalPackages();
+        if (fallback) setSeasonalPicks(INITIAL_SEASONAL_PICKS);
+      }
+    } catch (e) {
+      console.warn('Using default seasonal picks:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', padding: '4rem 2rem' }}>
@@ -30,17 +72,32 @@ export default function LandingPage() {
       <section style={{ maxWidth: '1200px', margin: '0 auto 4rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Heart color="var(--accent-coral)"/> Seasonal Inspiration</h2>
-          <Button variant="secondary">Refresh Picks</Button>
+          <Button variant="secondary" icon={RefreshCw} onClick={handleRefreshPicks} disabled={isRefreshing}>
+            {isRefreshing ? 'Fetching AI Picks...' : 'Refresh Picks'}
+          </Button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-          {[
-            { name: 'Kyoto, Japan', tag: 'Autumn Leaves', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80")' },
-            { name: 'Swiss Alps', tag: 'Winter Wonderland', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1531315630201-bb15abeb1653?w=500&q=80")' },
-            { name: 'Santorini', tag: 'Summer Escape', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1533105079780-92b9be482077?w=500&q=80")' }
-          ].map((dest, i) => (
-            <motion.div key={i} whileHover={{ y: -10 }} style={{ height: '300px', borderRadius: 'var(--radius-lg)', background: dest.img, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '1.5rem', border: '1px solid var(--border-subtle)' }}>
+          {seasonalPicks.map((dest, i) => (
+            <motion.div 
+              key={i} 
+              whileHover={{ y: -10, scale: 1.02 }} 
+              onClick={() => handleCardClick(dest)}
+              style={{ 
+                height: '300px', 
+                borderRadius: 'var(--radius-lg)', 
+                background: dest.img, 
+                backgroundSize: 'cover', 
+                backgroundPosition: 'center', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justify: 'flex-end', 
+                padding: '1.5rem', 
+                border: '1px solid var(--border-subtle)',
+                cursor: 'pointer'
+              }}>
               <span className="badge" style={{ alignSelf: 'flex-start', marginBottom: '0.5rem', background: 'var(--accent-coral)', color: 'white' }}>{dest.tag}</span>
               <h3 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{dest.name}</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Click to apply destination & vibe ➔</p>
             </motion.div>
           ))}
         </div>
