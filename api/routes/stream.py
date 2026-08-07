@@ -89,6 +89,14 @@ async def websocket_plan(websocket: WebSocket):
                     for node_name, node_output in event.items():
                         if isinstance(node_output, dict):
                             accumulated_state.update(node_output)
+                            # Re-assert immutable state constants to guarantee global requirements are never overwritten
+                            accumulated_state["destination"] = initial_state["destination"]
+                            accumulated_state["num_days"] = initial_state.get("num_days", 5)
+                            accumulated_state["origin"] = initial_state.get("origin", "Singapore")
+                            accumulated_state["currency"] = initial_state.get("currency", "SGD")
+                            accumulated_state["travelers_summary"] = initial_state.get("travelers_summary", "2 Adults, 1 Child")
+                            accumulated_state["persona"] = initial_state.get("persona", "Family")
+                            accumulated_state["no_budget"] = initial_state.get("no_budget", True)
                         loop.call_soon_threadsafe(queue.put_nowait, {"type": "node", "name": node_name, "output": node_output})
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "done", "result": accumulated_state})
             except Exception as e:

@@ -131,7 +131,7 @@ def budget_guardrail(state: dict) -> dict:
 
 
 def agent_as_judge(state: dict) -> dict:
-    """Cognitive quality evaluation using a separate LLM call."""
+    """Cognitive quality evaluation using a separate LLM call as a READ-ONLY inspector."""
     logger.info(f"[Agent-as-Judge] Starting persona compliance check for persona='{state['persona']}'")
     persona_key = state["persona"].lower().strip()
     if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
@@ -140,13 +140,18 @@ def agent_as_judge(state: dict) -> dict:
         profile = PERSONA_PROFILES.get(persona_key, PERSONA_PROFILES["family"])
 
     num_days = state.get("num_days", 5)
+    destination = state.get("destination", "Destination")
+    travelers_summary = state.get("travelers_summary", "2 Adults, 1 Child")
 
     prompt = (
         f"You are an impartial travel plan quality inspector.\n\n"
-        f"Your task is to evaluate the following travel plan against the MANDATORY persona rules AND the required trip length.\n"
-        f"You must be STRICT. Any rule violation or missing days results in a FAIL.\n\n"
-        f"## TRIP LENGTH REQUIREMENT:\n"
-        f"The itinerary MUST explicitly cover exactly {num_days} days (Day 1 through Day {num_days}). If it plans fewer or more than {num_days} days, fail the evaluation.\n\n"
+        f"CRITICAL DIRECTIVE: DO NOT ALTER OR SUGGEST CHANGING THE TRIP DESTINATION ('{destination}'), THE REQUIRED NUMBER OF DAYS ({num_days} DAYS), OR THE TRAVELER COMPOSITION ('{travelers_summary}'). THESE ARE IMMUTABLE USER REQUIREMENTS.\n\n"
+        f"Your ONLY task is to evaluate whether the proposed travel plan fulfills these MANDATORY requirements and persona rules.\n"
+        f"You must be STRICT. If the proposed plan fails to cover all {num_days} days or violates persona rules, explain WHY in your feedback.\n\n"
+        f"## REQUIRED TRIP SPECIFICATION (IMMUTABLE CONSTANTS):\n"
+        f"- Target Destination: {destination}\n"
+        f"- Required Trip Duration: EXACTLY {num_days} DAYS (Day 1 through Day {num_days})\n"
+        f"- Group Composition: {travelers_summary}\n\n"
         f"## PERSONA: {profile.get('label', 'Custom Persona')}\n"
         f"## MANDATORY RULES:\n{profile.get('rules', 'Follow traveler preferences.')}\n\n"
         f"## TRAVEL PLAN TO EVALUATE:\n\n"
@@ -159,11 +164,11 @@ def agent_as_judge(state: dict) -> dict:
         f"VERDICT: [PASS or FAIL]\n\n"
         f"SCORE: [1-10]\n\n"
         f"RULE-BY-RULE CHECK:\n"
-        f"1. [Rule text] \u2014 [PASS/FAIL] \u2014 [Brief evidence]\n"
-        f"...\n"
-        f"X. Trip Length ({num_days} Days) \u2014 [PASS/FAIL] \u2014 [Evidence]\n\n"
+        f"1. Target Destination ({destination}) — [PASS/FAIL] — [Brief evidence]\n"
+        f"2. Trip Length ({num_days} Days) — [PASS/FAIL] — [Evidence]\n"
+        f"3. Persona Rules — [PASS/FAIL] — [Evidence]\n\n"
         f"OVERALL ASSESSMENT:\n"
-        f"[2-3 sentences summarizing the quality of the plan]"
+        f"[2-3 sentences summarizing whether the plan fulfills all requirements]"
     )
 
     logger.debug("[Agent-as-Judge] Invoking Gemini LLM...")
