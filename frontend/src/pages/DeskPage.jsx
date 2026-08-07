@@ -36,10 +36,13 @@ export default function DeskPage() {
       }
     };
 
-    apiClient.connectPlanStream(
+    const cancelFn = apiClient.connectPlanStream(
       inputs,
-      (node, status, progress) => {
+      (node, status, progress, nodeData) => {
         updateAgentProgress(node, status);
+        if (nodeData) {
+          store.updatePartialResult(nodeData);
+        }
       },
       (result) => {
         setPlanResult(result, 'complete');
@@ -49,6 +52,10 @@ export default function DeskPage() {
         setPlanResult(null, 'error');
       }
     );
+
+    if (cancelFn) {
+      store.setCancelStreamFn(cancelFn);
+    }
   };
 
   useEffect(() => {

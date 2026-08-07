@@ -32,11 +32,39 @@ export const useTripStore = create((set) => ({
 
   // Plan results
   planResult: null,
+  partialResult: {},
   planStatus: 'idle', // 'idle', 'planning', 'complete', 'error'
   autoRunPlan: false,
+  cancelStreamFn: null,
   setAutoRunPlan: (flag) => set({ autoRunPlan: flag }),
+  setCancelStreamFn: (fn) => set({ cancelStreamFn: fn }),
   setPlanResult: (result, status) => set({ planResult: result, planStatus: status }),
-  startPlanning: () => set({ planStatus: 'planning', planResult: null, agentProgress: {}, currentNode: 'starting', autoRunPlan: false }),
+  updatePartialResult: (nodeData) => set((state) => ({
+    partialResult: typeof nodeData === 'object' ? { ...state.partialResult, ...nodeData } : state.partialResult
+  })),
+  startPlanning: () => set({ planStatus: 'planning', planResult: null, partialResult: {}, agentProgress: {}, currentNode: 'starting', autoRunPlan: false }),
+  stopPlanning: () => set((state) => {
+    if (state.cancelStreamFn) {
+      try { state.cancelStreamFn(); } catch (e) {}
+    }
+    const hasData = Object.keys(state.partialResult).length > 0;
+    const finalResult = hasData ? {
+      status: 'stopped',
+      judge_verdict: 'Stopped early by traveler — Partial plan displayed',
+      destination: state.destination || 'Destination',
+      itinerary: state.partialResult.itinerary || '### Partial Itinerary\n- Sightseeing research completed.',
+      food_and_retail: state.partialResult.food_and_retail || '### Dining\n- Local food recommendations.',
+      hotel_recommendations: state.partialResult.hotel_recommendations || '### Accommodations\n- Recommended stays.',
+      purchasing_guide: state.partialResult.purchasing_guide || '### Logistics\n- Transport options.',
+      ...state.partialResult
+    } : null;
+
+    return {
+      planStatus: 'complete',
+      planResult: finalResult,
+      cancelStreamFn: null
+    };
+  }),
 
   // Agent progress
   agentProgress: {},

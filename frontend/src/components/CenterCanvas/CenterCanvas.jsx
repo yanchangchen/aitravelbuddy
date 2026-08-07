@@ -5,9 +5,11 @@ import MapView from './MapView';
 import BudgetBar from './BudgetBar';
 import HotelCards from './HotelCards';
 import FlightBooking from './FlightBooking';
+import { Button } from '../shared';
+import { Square } from 'lucide-react';
 
 export default function CenterCanvas() {
-  const { centerView, setCenterView, planResult, planStatus, currentNode, agentProgress } = useTripStore();
+  const { centerView, setCenterView, planResult, planStatus, currentNode, agentProgress, stopPlanning } = useTripStore();
 
   const tabs = [
     { id: 'timeline', label: 'Timeline' },
@@ -54,7 +56,12 @@ export default function CenterCanvas() {
               <span className="spinner" style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--accent-coral)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
               Running Agent Graph: {nodeNames[currentNode] || 'Initializing Collaborative Agents...'}
             </span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-coral)' }}>{percent}% Complete</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-coral)' }}>{percent}% Complete</span>
+              <Button size="sm" variant="secondary" icon={Square} onClick={stopPlanning} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderColor: 'var(--accent-coral)', color: 'var(--accent-coral)' }}>
+                Stop & Show Partial Plan
+              </Button>
+            </div>
           </div>
           <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${percent}%`, background: 'var(--gradient-coral)', transition: 'width 0.3s ease' }} />

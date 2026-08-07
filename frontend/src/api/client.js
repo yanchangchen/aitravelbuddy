@@ -35,24 +35,35 @@ export const apiClient = {
   getLocations: (result, destination) => fetchJSON('/api/trips/export/locations', { method: 'POST', body: JSON.stringify({ result, destination }) }),
 
   connectPlanStream: (inputs, onNodeUpdate, onComplete, onError) => {
+    let socket = null;
+    let cancelled = false;
+
+    const cancel = () => {
+      cancelled = true;
+      if (socket) {
+        try { socket.close(); } catch (e) {}
+      }
+    };
+
     try {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = API_BASE.replace(/^https?:\/\//, '');
       const wsUrl = `${wsProtocol}//${wsHost}/api/ws/plan`;
       
-      const socket = new WebSocket(wsUrl);
+      socket = new WebSocket(wsUrl);
       let socketOpened = false;
 
       socket.onopen = () => {
         socketOpened = true;
-        socket.send(JSON.stringify(inputs));
+        if (!cancelled) socket.send(JSON.stringify(inputs));
       };
 
       socket.onmessage = (event) => {
+        if (cancelled) return;
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'node_update') {
-            onNodeUpdate(msg.node, 'running', msg.progress);
+            onNodeUpdate(msg.node, 'running', msg.progress, msg.data);
           } else if (msg.type === 'complete') {
             onComplete(msg.result);
           } else if (msg.type === 'error') {
@@ -64,6 +75,7 @@ export const apiClient = {
       };
 
       socket.onerror = (err) => {
+        if (cancelled) return;
         console.warn('WebSocket error, falling back to local simulation:', err);
         if (!socketOpened) {
           fallbackMockStream(onNodeUpdate, onComplete);
@@ -73,14 +85,19 @@ export const apiClient = {
       };
 
       socket.onclose = (event) => {
+        if (cancelled) return;
         if (!socketOpened) {
           fallbackMockStream(onNodeUpdate, onComplete);
         }
       };
     } catch (e) {
-      console.warn('Failed to establish WebSocket, running mock stream:', e);
-      fallbackMockStream(onNodeUpdate, onComplete);
+      if (!cancelled) {
+        console.warn('Failed to establish WebSocket, running mock stream:', e);
+        fallbackMockStream(onNodeUpdate, onComplete);
+      }
     }
+
+    return cancel;
   }
 };
 
