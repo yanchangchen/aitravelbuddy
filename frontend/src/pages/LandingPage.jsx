@@ -78,14 +78,14 @@ export default function LandingPage() {
   };
 
   const handleCardClick = async (dest) => {
-    const targetDest = dest.name || dest.destination;
-    const { startStr, endStr } = calculateOptimal7DayDates(dest.tag, targetDest);
-
-    setLogistics({ 
-      origin: dest.origin || 'Singapore',
+    const targetDest = dest.name || dest.title || 'Tokyo, Japan';
+    
+    setLogistics({
+      origin: 'Singapore',
       destination: targetDest,
-      startDate: startStr,
-      endDate: endStr,
+      startDate: '2026-11-15',
+      endDate: '2026-11-22',
+      currency: 'SGD',
       numAdults: 2,
       numChildren: 1,
       numInfants: 0,
@@ -96,31 +96,12 @@ export default function LandingPage() {
     
     setPersona('Family', {
       title: dest.title || targetDest,
-      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping.`,
+      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping in ${targetDest}.`,
       tempo: 'Medium',
       dining: 'Agent Recommended Sights & Food',
       lodging: 'Boutique & Family Stays'
     });
 
-    // Check if pre-computed saved trip already exists in database
-    try {
-      const savedTrips = await apiClient.getSavedTrips();
-      if (savedTrips && Array.isArray(savedTrips)) {
-        const primaryCity = targetDest.split(',')[0].trim().toLowerCase();
-        const existing = savedTrips.find(t => 
-          t.destination && t.destination.toLowerCase().includes(primaryCity)
-        );
-        if (existing) {
-          console.log('💾 Found pre-computed seasonal trip in database! Loading from cache:', existing);
-          useTripStore.getState().loadSavedTrip(existing);
-          navigate('/desk');
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Could not query saved trips cache:', e);
-    }
-    
     setAutoRunPlan(true);
     navigate('/desk');
   };

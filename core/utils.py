@@ -70,6 +70,10 @@ def geocode_location(location_name: str):
 CITY_COORDINATES = {
     "tokyo": (35.6762, 139.6503),
     "kyoto": (35.0116, 135.7681),
+    "banff": (51.1784, -115.5708),
+    "lake louise": (51.4254, -116.1773),
+    "zermatt": (46.0207, 7.7491),
+    "matterhorn": (45.9763, 7.6586),
     "sapporo": (43.0618, 141.3545),
     "hokkaido": (43.0618, 141.3545),
     "zurich": (47.3769, 8.5417),
@@ -97,6 +101,19 @@ def get_city_fallback_coords(destination: str) -> tuple:
         if key in clean:
             return coords
     return (35.6762, 139.6503)
+
+
+def clean_venue_name(name: str) -> str:
+    """Strip action verbs (e.g. Visit, Explore) from venue names before geocoding."""
+    cleaned = re.sub(r"[*_#]", "", name).strip()
+    action_verbs = [
+        r"^visit\s+", r"^explore\s+", r"^head\s+to\s+", r"^discover\s+",
+        r"^walk\s+around\s+", r"^walk\s+through\s+", r"^tour\s+", r"^enjoy\s+",
+        r"^check\s+in\s+at\s+", r"^check-in\s+at\s+", r"^shop\s+at\s+", r"^dine\s+at\s+"
+    ]
+    for pattern in action_verbs:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned
 
 
 def extract_all_plan_locations(result_input, destination: str) -> list:
@@ -136,7 +153,7 @@ def extract_all_plan_locations(result_input, destination: str) -> list:
             sub_venues = [v.strip() for v in re.split(r"&| and ", raw_venue) if v.strip()]
 
             for venue in sub_venues:
-                v_clean = re.sub(r"[*_#]", "", venue).strip()
+                v_clean = clean_venue_name(venue)
                 if len(v_clean) > 2 and not v_clean.lower().startswith("daily transport") and v_clean.lower() not in seen_venues:
                     seen_venues.add(v_clean.lower())
                     coords = geocode_location(f"{v_clean}, {destination}") or geocode_location(v_clean)
@@ -151,11 +168,14 @@ def extract_all_plan_locations(result_input, destination: str) -> list:
                         "category": "Sightseeing",
                         "day": current_day,
                         "title": v_clean,
+                        "name": v_clean,
                         "query": f"{v_clean}, {destination}",
                         "lat": coords[0],
+                        "lng": coords[1],
                         "lon": coords[1],
                         "geocoded": is_geocoded,
                         "color": [255, 75, 75, 220],
+                        "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(v_clean + ', ' + destination)}"
                     })
 
     # 2. Parse Hotels
