@@ -7,39 +7,42 @@ test.describe('Traveler\'s Desk — 3-Pane Layout', () => {
   });
 
   test('should render the 3-pane desk layout', async ({ page }) => {
-    // Check the desk container
-    const desk = page.locator('.desk-layout, .desk-container');
+    // Check the desk layout container
+    const desk = page.locator('.desk-layout');
     await expect(desk).toBeVisible();
 
-    // Left drawer should be visible
-    const leftDrawer = page.locator('.left-drawer');
-    await expect(leftDrawer).toBeVisible();
+    // Left pane should be visible
+    const leftPane = page.locator('.pane.left');
+    await expect(leftPane).toBeVisible();
 
-    // Center canvas should be visible
-    const center = page.locator('.center-canvas');
-    await expect(center).toBeVisible();
+    // Center canvas pane should be visible
+    const centerPane = page.locator('.pane.center');
+    await expect(centerPane).toBeVisible();
 
-    // Right panel should be visible
-    const right = page.locator('.right-panel');
-    await expect(right).toBeVisible();
+    // Right pane should be visible
+    const rightPane = page.locator('.pane.right');
+    await expect(rightPane).toBeVisible();
   });
 
-  test('should have collapsible left drawer', async ({ page }) => {
-    const leftDrawer = page.locator('.left-drawer');
-    await expect(leftDrawer).toBeVisible();
+  test('should have collapsible left drawer toggle', async ({ page }) => {
+    const leftPane = page.locator('.pane.left');
+    await expect(leftPane).toBeVisible();
 
-    // Find and click the collapse/toggle button
-    const toggleBtn = page.locator('.drawer-toggle, .left-drawer button').first();
-    if (await toggleBtn.isVisible()) {
-      await toggleBtn.click();
-      // Drawer should collapse (hidden or width 0)
-      await page.waitForTimeout(500); // wait for animation
-      
-      // Click again to expand
-      await toggleBtn.click();
-      await page.waitForTimeout(500);
-      await expect(leftDrawer).toBeVisible();
-    }
+    // Find and click the header menu toggle button
+    const toggleBtn = page.locator('button.left-drawer-toggle').first();
+    await expect(toggleBtn).toBeVisible();
+
+    await toggleBtn.click();
+    await page.waitForTimeout(300);
+    
+    // Check that desk-layout has 'left-closed' class
+    const deskLayout = page.locator('.desk-layout');
+    await expect(deskLayout).toHaveClass(/left-closed/);
+
+    // Click header toggle button again to re-open
+    await toggleBtn.click();
+    await page.waitForTimeout(300);
+    await expect(deskLayout).not.toHaveClass(/left-closed/);
   });
 });
 
@@ -50,14 +53,14 @@ test.describe('Traveler\'s Desk — Trip Logistics Form', () => {
 
   test('should fill in trip logistics fields', async ({ page }) => {
     // Fill origin
-    const originInput = page.locator('input[placeholder*="origin" i], input[name="origin"], label:has-text("Origin") + input, label:has-text("Origin") ~ input').first();
+    const originInput = page.locator('input[placeholder*="origin" i], input[value*="Singapore" i]').first();
     if (await originInput.isVisible()) {
       await originInput.fill('Singapore');
       await expect(originInput).toHaveValue('Singapore');
     }
 
     // Fill destination
-    const destInput = page.locator('input[placeholder*="destination" i], input[name="destination"], label:has-text("Destination") + input, label:has-text("Destination") ~ input').first();
+    const destInput = page.locator('input[placeholder*="destination" i], input[placeholder*="Tokyo" i]').first();
     if (await destInput.isVisible()) {
       await destInput.fill('Tokyo, Japan');
       await expect(destInput).toHaveValue('Tokyo, Japan');
@@ -90,30 +93,23 @@ test.describe('Traveler\'s Desk — Persona Selection', () => {
   });
 
   test('should show persona options', async ({ page }) => {
-    // Look for persona buttons or radio options
-    const personaSection = page.locator('text=Persona, text=Style, text=Traveler Type').first();
-    if (await personaSection.isVisible()) {
-      await expect(personaSection).toBeVisible();
-    }
-
-    // Check for persona option buttons
-    const personaOptions = page.locator('.persona-option, .persona-btn, button:has-text("Family"), button:has-text("Solo"), button:has-text("Business")');
-    const count = await personaOptions.count();
-    expect(count).toBeGreaterThanOrEqual(0); // May be inside an accordion
+    // Look for persona accordion title
+    const personaHeader = page.locator('h3:has-text("Persona & Style")').first();
+    await expect(personaHeader).toBeVisible();
   });
 
   test('should not change destination when selecting a persona', async ({ page }) => {
     // Fill in destination first
-    const destInput = page.locator('input[placeholder*="destination" i], input[name="destination"]').first();
+    const destInput = page.locator('input[placeholder*="destination" i], input[placeholder*="Tokyo" i]').first();
     if (await destInput.isVisible()) {
       await destInput.fill('Paris, France');
       
-      // Click a persona option
+      // Select a persona option if visible
       const familyBtn = page.locator('button:has-text("Family"), label:has-text("Family")').first();
       if (await familyBtn.isVisible()) {
         await familyBtn.click();
         
-        // Destination should remain Paris, France (not change to a persona-specific destination)
+        // Destination should remain Paris, France
         await expect(destInput).toHaveValue('Paris, France');
       }
     }
