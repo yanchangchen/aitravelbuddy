@@ -21,24 +21,31 @@ function extractCostFromText(text, tag, defaultVal) {
 }
 
 export default function BudgetBar() {
-  const { planResult, partialResult, budget, currency, noBudget } = useTripStore();
+  const { planResult, partialResult, budget, currency, noBudget, numAdults, numChildren, numInfants } = useTripStore();
   
   const activeResult = planResult || (Object.keys(partialResult).length > 0 ? partialResult : null);
   if (!activeResult) return null;
 
-  const flightCost = extractCostFromText(activeResult.purchasing_guide, 'AIRFARE_TOTAL_SGD', 580);
-  const hotelCost = extractCostFromText(activeResult.hotel_recommendations, 'HOTEL_TOTAL_SGD', 840);
-  const diningCost = extractCostFromText(activeResult.food_and_retail, 'FOOD_RETAIL_TOTAL_SGD', 360);
-  const sightCost = extractCostFromText(activeResult.itinerary, 'SIGHTSEEING_TOTAL_SGD', 240);
+  const totalTravelers = (numAdults || 2) + (numChildren || 1) + (numInfants || 0);
 
-  const total = Math.round(flightCost + hotelCost + diningCost + sightCost);
+  const flightCostPax = extractCostFromText(activeResult.purchasing_guide, 'AIRFARE_TOTAL_SGD', 550);
+  const hotelCostTotal = extractCostFromText(activeResult.hotel_recommendations, 'HOTEL_TOTAL_SGD', 850);
+  const diningCostPax = extractCostFromText(activeResult.food_and_retail, 'FOOD_RETAIL_TOTAL_SGD', 180);
+  const sightCostPax = extractCostFromText(activeResult.itinerary, 'SIGHTSEEING_TOTAL_SGD', 120);
+
+  const flightTotal = Math.round(flightCostPax * totalTravelers);
+  const diningTotal = Math.round(diningCostPax * totalTravelers);
+  const sightTotal = Math.round(sightCostPax * totalTravelers);
+  const hotelTotal = Math.round(hotelCostTotal);
+
+  const total = flightTotal + hotelTotal + diningTotal + sightTotal;
   const currentCurrency = currency || 'SGD';
 
   const categories = [
-    { name: 'Flights', icon: Plane, amount: Math.round(flightCost), color: 'var(--accent-blue)' },
-    { name: 'Hotels', icon: Home, amount: Math.round(hotelCost), color: 'var(--accent-coral)' },
-    { name: 'Dining', icon: Coffee, amount: Math.round(diningCost), color: 'var(--accent-orange)' },
-    { name: 'Sightseeing', icon: Map, amount: Math.round(sightCost), color: 'var(--accent-green)' }
+    { name: 'Flights', icon: Plane, amount: flightTotal, color: 'var(--accent-blue)' },
+    { name: 'Hotels', icon: Home, amount: hotelTotal, color: 'var(--accent-coral)' },
+    { name: 'Dining', icon: Coffee, amount: diningTotal, color: 'var(--accent-orange)' },
+    { name: 'Sightseeing', icon: Map, amount: sightTotal, color: 'var(--accent-green)' }
   ];
 
   const pct = (!noBudget && budget > 0) ? Math.min((total / budget) * 100, 100) : 100;
