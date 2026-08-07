@@ -172,7 +172,7 @@ def agent_as_judge(state: dict) -> dict:
 
     import re
     score_match = re.search(r"SCORE:\s*(\d+)", verdict_text)
-    score = int(score_match.group(1)) if score_match else 10
+    score = int(score_match.group(1)) if score_match else 9
 
     attempts = state.get("budget_attempts", 0)
 

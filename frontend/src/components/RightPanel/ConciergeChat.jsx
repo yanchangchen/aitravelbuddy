@@ -38,37 +38,59 @@ export default function ConciergeChat() {
   };
 
   const handlePlan = async () => {
-    startPlanning();
+    setIsTyping(true);
+    let extractedDest = null;
+    let extractedPersona = null;
+    let customProfile = null;
+
     try {
       const res = await apiClient.extractPlanFromChat(conciergeMessages);
       const extracted = res?.plan || res;
       if (extracted) {
-        if (extracted.destination) useTripStore.getState().setLogistics({ destination: extracted.destination });
-        if (extracted.persona) useTripStore.getState().setPersona(extracted.persona, extracted.custom_persona_profile || {});
+        if (extracted.destination) {
+          extractedDest = extracted.destination;
+          useTripStore.getState().setLogistics({ destination: extracted.destination });
+        }
+        if (extracted.persona) {
+          extractedPersona = extracted.persona;
+          customProfile = extracted.custom_persona_profile || {};
+          useTripStore.getState().setPersona(extracted.persona, customProfile);
+        }
       }
     } catch (e) {
       console.warn('Extraction skipped, proceeding with active inputs:', e);
+    } finally {
+      setIsTyping(false);
     }
 
     const store = useTripStore.getState();
+    const targetDest = extractedDest || store.destination || 'Tokyo, Japan';
+    
+    // Compile full chat history context
+    const conversationContext = conciergeMessages
+      .map(m => `${m.role === 'user' ? 'Traveler' : 'Travel Buddy'}: ${m.content}`)
+      .join('\n');
+
+    startPlanning();
+
     const inputs = {
       origin: store.origin || 'Singapore',
-      destination: store.destination || 'Tokyo, Japan',
+      destination: targetDest,
       budget: store.noBudget ? 0 : store.budget,
-      num_adults: store.numAdults,
-      num_children: store.numChildren,
-      num_infants: store.numInfants,
+      num_adults: store.numAdults || 2,
+      num_children: store.numChildren || 1,
+      num_infants: store.numInfants || 0,
       self_drive: store.selfDrive,
       no_budget: store.noBudget,
       currency: store.currency || 'SGD',
       dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026',
       num_days: 5,
-      persona: store.selectedPersona,
-      custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : null,
+      persona: extractedPersona || store.selectedPersona || 'Family',
+      custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : customProfile,
       user_preferences: {
         dining: store.customPersona?.dining,
         lodging: store.customPersona?.lodging,
-        rules: store.customPersona?.rules
+        rules: `TRAVEL BUDDY CONVERSATION HISTORY & TRAVELER PREFERENCES:\n${conversationContext}`
       }
     };
 
