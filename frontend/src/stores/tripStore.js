@@ -2,17 +2,17 @@ import { create } from 'zustand';
 
 export const useTripStore = create((set) => ({
   // Logistics
-  origin: '',
+  origin: 'Singapore',
   destination: '',
   startDate: '',
   endDate: '',
   numAdults: 2,
-  numChildren: 0,
+  numChildren: 1,
   numInfants: 0,
   selfDrive: false,
-  noBudget: false,
+  noBudget: true,
   budget: 5000,
-  currency: 'USD',
+  currency: 'SGD',
   setLogistics: (updates) => set((state) => ({ ...state, ...updates })),
 
   // Persona

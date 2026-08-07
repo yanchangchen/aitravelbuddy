@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, Menu } from 'lucide-react';
 import TripLogistics from './TripLogistics';
 import PersonaPanel from './PersonaPanel';
 import SavedTrips from './SavedTrips';
+import AgentMonitor from '../RightPanel/AgentMonitor';
+import JudgeVerdict from '../RightPanel/JudgeVerdict';
 import { useTripStore } from '../../stores/tripStore';
 
 const Accordion = ({ title, children, defaultOpen = false }) => {
@@ -19,7 +21,7 @@ const Accordion = ({ title, children, defaultOpen = false }) => {
 };
 
 export default function LeftDrawer() {
-  const { toggleLeftDrawer } = useTripStore();
+  const { toggleLeftDrawer, planStatus } = useTripStore();
 
   return (
     <>
@@ -30,6 +32,12 @@ export default function LeftDrawer() {
         <span style={{ fontWeight: 600 }}>Trip Details</span>
       </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        {planStatus !== 'idle' && (
+          <Accordion title="🤖 Agent Pipeline Stream" defaultOpen={true}>
+            <AgentMonitor />
+            <JudgeVerdict />
+          </Accordion>
+        )}
         <Accordion title="📍 Trip Logistics" defaultOpen={true}>
           <TripLogistics />
         </Accordion>

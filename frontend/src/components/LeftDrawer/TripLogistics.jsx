@@ -37,7 +37,7 @@ export default function TripLogistics() {
       {!noBudget && (
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <div style={{ flex: 1 }}><Input type="number" value={budget} onChange={(e) => setLogistics({ budget: parseInt(e.target.value) || 0 })} /></div>
-          <div style={{ width: '80px' }}><Select options={['USD', 'EUR', 'JPY', 'GBP']} value={currency} onChange={(e) => setLogistics({ currency: e.target.value })} /></div>
+          <div style={{ width: '90px' }}><Select options={['SGD', 'USD', 'EUR', 'JPY', 'GBP']} value={currency} onChange={(e) => setLogistics({ currency: e.target.value })} /></div>
         </div>
       )}
     </div>
