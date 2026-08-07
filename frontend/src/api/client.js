@@ -68,13 +68,13 @@ export const apiClient = {
       
       socket = new WebSocket(wsUrl);
 
-      // If WS doesn't open within 2000ms (e.g. cold start or blocked WS), fallback to REST immediately
+      // If WS doesn't open within 10000ms (e.g. Render cold start), fallback to REST
       wsConnectTimeout = setTimeout(() => {
         if (socket.readyState !== WebSocket.OPEN) {
-          console.log('⚡ WebSocket connect timeout (>2s), switching to REST API execution');
+          console.log('⚡ WebSocket connect timeout (>10s), switching to REST API execution');
           triggerRESTFallback();
         }
-      }, 2000);
+      }, 10000);
 
       socket.onopen = () => {
         if (wsConnectTimeout) clearTimeout(wsConnectTimeout);
@@ -133,9 +133,8 @@ function runRESTPlanWithProgressTicker(inputs, onNodeUpdate, onComplete, onError
 
   let currentIdx = 0;
   let restCompleted = false;
-  let finalResult = null;
 
-  // Ticker updates node status every 900ms
+  // Ticker updates node status every 2500ms
   const ticker = setInterval(() => {
     if (isCancelled() || restCompleted) {
       clearInterval(ticker);
@@ -146,7 +145,7 @@ function runRESTPlanWithProgressTicker(inputs, onNodeUpdate, onComplete, onError
       onNodeUpdate(node.id, 'running', node.progress);
       currentIdx++;
     }
-  }, 900);
+  }, 2500);
 
   // Immediately set first node
   onNodeUpdate('itinerary_agent', 'running', 0.17);

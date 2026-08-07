@@ -81,17 +81,18 @@ async def websocket_plan(websocket: WebSocket):
         queue = asyncio.Queue()
         accumulated_state = dict(initial_state)
         
+        loop = asyncio.get_running_loop()
+        
         def run_graph_sync():
             try:
-                loop = asyncio.get_event_loop()
                 for event in graph.stream(initial_state):
                     for node_name, node_output in event.items():
                         if isinstance(node_output, dict):
                             accumulated_state.update(node_output)
-                        asyncio.run_coroutine_threadsafe(queue.put({"type": "node", "name": node_name, "output": node_output}), loop)
-                asyncio.run_coroutine_threadsafe(queue.put({"type": "done", "result": accumulated_state}), loop)
+                        loop.call_soon_threadsafe(queue.put_nowait, {"type": "node", "name": node_name, "output": node_output})
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "done", "result": accumulated_state})
             except Exception as e:
-                asyncio.run_coroutine_threadsafe(queue.put({"type": "error", "message": str(e)}), loop)
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "message": str(e)})
                 
         # Start thread
         task = asyncio.create_task(asyncio.to_thread(run_graph_sync))

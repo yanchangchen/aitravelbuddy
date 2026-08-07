@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     
     app.state.llm = ChatGoogleGenerativeAI(
         model='gemini-3.1-flash-lite', 
-        google_api_key=gemini_key
+        google_api_key=gemini_key or "dummy_key_for_init"
     )
 
     # Initialize search tool
@@ -45,10 +45,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("✅ Tavily Search API key configured successfully.")
     
-    app.state.search_tool = TavilySearchResults(
-        max_results=3, 
-        tavily_api_key=tavily_key
-    )
+    if TavilySearchResults:
+        app.state.search_tool = TavilySearchResults(
+            max_results=3, 
+            tavily_api_key=tavily_key or "dummy_key_for_init"
+        )
 
     # Initialize DB
     supabase_url = os.getenv("SUPABASE_URL")
