@@ -1,3 +1,4 @@
+from typing import Optional
 import asyncio
 import os
 from fastapi import APIRouter, HTTPException
@@ -8,13 +9,13 @@ from core.surprise import get_seasonal_surprise, get_current_season, fetch_live_
 router = APIRouter()
 
 class RefreshRequest(BaseModel):
-    season: str
+    season: Optional[str] = None
 
 @router.get("/seasonal")
 async def get_seasonal():
     try:
-        season, pick = await asyncio.to_thread(get_seasonal_surprise)
-        return {"season": season, "surprise": pick}
+        pick = await asyncio.to_thread(get_seasonal_surprise)
+        return {"season": pick.get("season", "Summer"), "surprise": pick}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -23,12 +24,11 @@ async def get_packages():
     return SEASONAL_PACKAGES
 
 @router.post("/refresh")
-async def refresh_seasonal(request: RefreshRequest):
+async def refresh_seasonal(request: Optional[RefreshRequest] = None):
     gemini_key = os.getenv("GOOGLE_API_KEY")
-    if not gemini_key:
-        raise HTTPException(status_code=500, detail="Google API Key not configured")
+    season = request.season if request and request.season else get_current_season()
     try:
-        results = await asyncio.to_thread(fetch_live_seasonal_picks, request.season, gemini_key)
+        results = await asyncio.to_thread(fetch_live_seasonal_picks, season, gemini_key)
         return {"results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

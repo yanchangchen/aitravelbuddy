@@ -13,24 +13,63 @@ export default function ConciergeChat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conciergeMessages, isTyping]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    addChatMessage({ role: 'user', content: input });
+  const handleSend = async () => {
+    if (!input.trim() || isTyping) return;
+    const userMsg = { role: 'user', content: input };
+    const updatedMessages = [...conciergeMessages, userMsg];
+    addChatMessage(userMsg);
     setInput('');
     setIsTyping(true);
     
-    // Mock AI reply
-    setTimeout(() => {
+    try {
+      const response = await apiClient.sendConciergeMessage(updatedMessages, 'Traveler planning a trip');
+      const replyContent = response.content || response.text || (typeof response === 'string' ? response : 'I have noted your preferences. Click "Plan Trip" whenever you are ready!');
+      addChatMessage({ role: 'ai', content: replyContent });
+    } catch (e) {
+      console.warn('Concierge API error, using fallback response:', e);
+      addChatMessage({ role: 'ai', content: 'Got it! I have recorded your travel preferences. Click "Plan Trip" whenever you are ready to initiate the multi-agent planning pipeline.' });
+    } finally {
       setIsTyping(false);
-      addChatMessage({ role: 'ai', content: 'I noted that. You can click "Plan Trip" when you are ready to generate the itinerary.' });
-    }, 1000);
+    }
   };
 
-  const handlePlan = () => {
+  const handlePlan = async () => {
     startPlanning();
+    try {
+      const extracted = await apiClient.extractPlanFromChat(conciergeMessages);
+      if (extracted) {
+        if (extracted.destination) useTripStore.getState().setLogistics({ destination: extracted.destination });
+        if (extracted.persona) useTripStore.getState().setPersona(extracted.persona, extracted.custom_persona_profile || {});
+      }
+    } catch (e) {
+      console.warn('Extraction skipped, proceeding with active inputs:', e);
+    }
+
+    const store = useTripStore.getState();
+    const inputs = {
+      origin: store.origin || 'Singapore',
+      destination: store.destination || 'Tokyo, Japan',
+      budget: store.noBudget ? 0 : store.budget,
+      num_adults: store.numAdults,
+      num_children: store.numChildren,
+      num_infants: store.numInfants,
+      self_drive: store.selfDrive,
+      no_budget: store.noBudget,
+      currency: store.currency || 'SGD',
+      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026',
+      num_days: 5,
+      persona: store.selectedPersona,
+      custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : null,
+      user_preferences: {
+        dining: store.customPersona?.dining,
+        lodging: store.customPersona?.lodging,
+        rules: store.customPersona?.rules
+      }
+    };
+
     apiClient.connectPlanStream(
-      {}, 
-      (node, status) => updateAgentProgress(node, status),
+      inputs, 
+      (node, status, progress) => updateAgentProgress(node, status),
       (result) => setPlanResult(result, 'complete'),
       (err) => setPlanResult(null, 'error')
     );

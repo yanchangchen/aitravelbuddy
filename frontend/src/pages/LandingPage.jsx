@@ -14,15 +14,28 @@ const INITIAL_SEASONAL_PICKS = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { setLogistics, setPersona } = useTripStore();
+  const { setLogistics, setPersona, setAutoRunPlan } = useTripStore();
   const [seasonalPicks, setSeasonalPicks] = useState(INITIAL_SEASONAL_PICKS);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleCardClick = (dest) => {
-    setLogistics({ destination: dest.name });
-    if (dest.persona) {
-      setPersona(dest.persona);
-    }
+    setLogistics({ 
+      origin: dest.origin || 'Singapore',
+      destination: dest.name || dest.destination,
+      selfDrive: dest.selfDrive || dest.self_drive || false,
+      noBudget: true,
+      budget: 0
+    });
+    
+    setPersona(dest.persona || 'Couple', {
+      title: dest.title || dest.name,
+      rules: dest.reason || dest.tag || 'Focus on top seasonal sights, local food markets, and boutique lodging.',
+      tempo: 'Medium',
+      dining: 'Foodie & Street Food',
+      lodging: 'Boutique & Authentic'
+    });
+    
+    setAutoRunPlan(true);
     navigate('/desk');
   };
 
@@ -33,8 +46,11 @@ export default function LandingPage() {
       if (data && Array.isArray(data) && data.length > 0) {
         const formatted = data.slice(0, 3).map((item, idx) => ({
           name: item.destination || item.name || 'Zurich, Switzerland',
-          tag: item.tagline || item.season || 'Seasonal Pick',
+          origin: item.origin || 'Singapore',
+          tag: item.title || item.season || 'Seasonal Pick',
+          reason: item.reason || 'Peak seasonal weather and local food highlights.',
           persona: item.persona || 'Family',
+          selfDrive: item.self_drive || false,
           img: INITIAL_SEASONAL_PICKS[idx % 3].img
         }));
         setSeasonalPicks(formatted);

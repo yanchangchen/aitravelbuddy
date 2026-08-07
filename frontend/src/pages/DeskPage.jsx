@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTripStore } from '../stores/tripStore';
 import LeftDrawer from '../components/LeftDrawer/LeftDrawer';
 import CenterCanvas from '../components/CenterCanvas/CenterCanvas';
@@ -6,11 +6,57 @@ import RightPanel from '../components/RightPanel/RightPanel';
 import { Button } from '../components/shared';
 import { Save, Download, ArrowLeft, Menu, PanelRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
 
 export default function DeskPage() {
   const navigate = useNavigate();
-  const { leftDrawerOpen, rightPanelOpen, toggleLeftDrawer, toggleRightPanel, destination } = useTripStore();
-  
+  const store = useTripStore();
+  const { leftDrawerOpen, rightPanelOpen, toggleLeftDrawer, toggleRightPanel, destination, autoRunPlan, startPlanning, updateAgentProgress, setPlanResult } = store;
+
+  const handleStartPlan = () => {
+    startPlanning();
+    const inputs = {
+      origin: store.origin || 'Singapore',
+      destination: store.destination || 'Tokyo, Japan',
+      budget: store.noBudget ? 0 : store.budget,
+      num_adults: store.numAdults,
+      num_children: store.numChildren,
+      num_infants: store.numInfants,
+      self_drive: store.selfDrive,
+      no_budget: store.noBudget,
+      currency: store.currency || 'SGD',
+      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026',
+      num_days: 5,
+      persona: store.selectedPersona,
+      custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : null,
+      user_preferences: {
+        dining: store.customPersona?.dining,
+        lodging: store.customPersona?.lodging,
+        rules: store.customPersona?.rules
+      }
+    };
+
+    apiClient.connectPlanStream(
+      inputs,
+      (node, status, progress) => {
+        updateAgentProgress(node, status);
+      },
+      (result) => {
+        setPlanResult(result, 'complete');
+      },
+      (error) => {
+        console.error('Plan stream error:', error);
+        setPlanResult(null, 'error');
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (autoRunPlan) {
+      handleStartPlan();
+    }
+  }, [autoRunPlan]);
+
   const layoutClass = `desk-layout ${!leftDrawerOpen ? 'left-closed' : ''} ${!rightPanelOpen ? 'right-closed' : ''}`;
 
   return (

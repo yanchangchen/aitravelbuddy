@@ -33,8 +33,10 @@ export const useTripStore = create((set) => ({
   // Plan results
   planResult: null,
   planStatus: 'idle', // 'idle', 'planning', 'complete', 'error'
+  autoRunPlan: false,
+  setAutoRunPlan: (flag) => set({ autoRunPlan: flag }),
   setPlanResult: (result, status) => set({ planResult: result, planStatus: status }),
-  startPlanning: () => set({ planStatus: 'planning', planResult: null, agentProgress: {}, currentNode: 'starting' }),
+  startPlanning: () => set({ planStatus: 'planning', planResult: null, agentProgress: {}, currentNode: 'starting', autoRunPlan: false }),
 
   // Agent progress
   agentProgress: {},
