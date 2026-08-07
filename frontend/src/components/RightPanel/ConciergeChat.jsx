@@ -102,12 +102,23 @@ export default function ConciergeChat() {
                   size="sm" 
                   onClick={() => {
                     const dayStart = msg.content.indexOf('## Day') !== -1 ? msg.content.indexOf('## Day') : msg.content.indexOf('Day 1:');
-                    const modText = dayStart !== -1 ? msg.content.substring(dayStart) : msg.content;
-                    useTripStore.getState().updateItineraryText(modText);
+                    const hotelStart = msg.content.indexOf('### Recommended Hotel') !== -1 ? msg.content.indexOf('### Recommended Hotel') : msg.content.indexOf('### Hotel');
+                    
+                    let modText = msg.content;
+                    let hotelText = null;
+                    
+                    if (hotelStart !== -1 && hotelStart > dayStart) {
+                      modText = msg.content.substring(dayStart, hotelStart).trim();
+                      hotelText = msg.content.substring(hotelStart).trim();
+                    } else if (dayStart !== -1) {
+                      modText = msg.content.substring(dayStart).trim();
+                    }
+                    
+                    useTripStore.getState().updateItineraryText(modText, hotelText);
                   }}
                   style={{ fontSize: '0.75rem', background: 'var(--accent-coral)', color: '#fff', padding: '0.25rem 0.6rem', marginTop: '0.25rem' }}
                 >
-                  Apply Modification to Timeline & Map
+                  Apply Modification to Timeline, Hotels & Map
                 </Button>
               )}
             </div>

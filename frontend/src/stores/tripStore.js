@@ -35,9 +35,21 @@ export const useTripStore = create((set) => ({
   setSelectedLocation: (loc) => set({ selectedLocation: loc }),
   locationsList: [],
   setLocationsList: (locs) => set({ locationsList: locs }),
-  updateItineraryText: (newText) => set((state) => ({
-    planResult: state.planResult ? { ...state.planResult, itinerary: newText } : { destination: state.destination || 'Tokyo, Japan', itinerary: newText },
-    partialResult: { ...state.partialResult, itinerary: newText }
+  updateItineraryText: (newText, newHotels) => set((state) => ({
+    planResult: state.planResult ? { 
+      ...state.planResult, 
+      itinerary: newText,
+      ...(newHotels ? { hotel_recommendations: newHotels } : {})
+    } : { 
+      destination: state.destination || 'Tokyo, Japan', 
+      itinerary: newText,
+      ...(newHotels ? { hotel_recommendations: newHotels } : {})
+    },
+    partialResult: { 
+      ...state.partialResult, 
+      itinerary: newText,
+      ...(newHotels ? { hotel_recommendations: newHotels } : {})
+    }
   })),
 
   // Plan results
