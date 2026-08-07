@@ -26,6 +26,10 @@ Thumbs.db
 # Output files
 travel_buddy_*.txt
 
+# Node
+node_modules/
+frontend/node_modules/
+
 # Environment
 .env
 *.log

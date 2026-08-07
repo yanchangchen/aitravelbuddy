@@ -56,7 +56,7 @@ app = FastAPI(title="Travel Buddy API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://*.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,6 +68,7 @@ app.include_router(profiles.router, prefix="/api", tags=["profiles"])
 app.include_router(surprise.router, prefix="/api/surprise", tags=["surprise"])
 app.include_router(concierge.router, prefix="/api/concierge", tags=["concierge"])
 
+@app.get("/")
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "message": "Travel Buddy API is live"}
