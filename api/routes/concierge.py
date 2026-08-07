@@ -19,6 +19,7 @@ class ChatRequest(BaseModel):
 
 class ExtractPlanRequest(BaseModel):
     messages: List[Message]
+    destination: Optional[str] = None
 
 @router.post("/chat")
 async def chat(request: ChatRequest, req: Request):
@@ -59,8 +60,11 @@ Active Generated Itinerary:
 @router.post("/extract-plan")
 async def extract_plan(request: ExtractPlanRequest, req: Request):
     llm = req.app.state.llm
+    active_dest = request.destination or "Banff & Lake Louise, Canada"
     
-    system_prompt = """You are a travel plan extractor. Read the conversation and extract trip parameters as JSON.
+    system_prompt = f"""You are a travel plan extractor. Read the conversation and extract trip parameters as JSON.
+Current active target destination is '{active_dest}'. If no new destination is explicitly mentioned in conversation, retain destination as '{active_dest}'.
+
 Required fields:
 - origin
 - destination 
@@ -89,7 +93,7 @@ Return ONLY valid JSON.
             
     defaults = {
         "origin": "Singapore",
-        "destination": "Tokyo, Japan",
+        "destination": active_dest,
         "budget": 0.0,
         "num_adults": 2,
         "num_children": 1,
@@ -97,8 +101,8 @@ Return ONLY valid JSON.
         "self_drive": False,
         "no_budget": True,
         "currency": "SGD",
-        "dates": "Next Month",
-        "num_days": 7,
+        "dates": "Nov 15 - Nov 20, 2026",
+        "num_days": 5,
         "persona": "Family",
         "custom_persona_profile": {},
         "user_preferences": {}

@@ -44,7 +44,8 @@ export default function ConciergeChat() {
     let customProfile = null;
 
     try {
-      const res = await apiClient.extractPlanFromChat(conciergeMessages);
+      const currentDest = useTripStore.getState().destination || 'Banff & Lake Louise, Canada';
+      const res = await apiClient.extractPlanFromChat(conciergeMessages, currentDest);
       const extracted = res?.plan || res;
       if (extracted) {
         if (extracted.destination) {

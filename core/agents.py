@@ -106,6 +106,7 @@ def itinerary_agent(state: dict) -> dict:
         f"SIGHTSEEING_TOTAL_SGD: [number]\n\n"
         f"Rules:\n"
         f"- You MUST generate exactly {num_days} days (from Day 1 through Day {num_days}). Do not skip, omit, or shorten any days under any circumstances, including on retries.\n"
+        f"- On retries, KEEP ALL DAYS 1 THROUGH {num_days} FULLY INTACT. Do not compress or reduce the daily schedule; only refine activities specified in feedback.\n"
         f"- Adapt the Time Blocks (Morning/Afternoon/Evening) based on the persona's schedule constraints (e.g. Business traveler only has free time in Evenings/Mornings).\n"
         f"- Be realistic with prices in Singapore Dollars (SGD / S$) for {destination}\n"
         f"- Follow persona pacing rules STRICTLY\n"
