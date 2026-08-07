@@ -70,7 +70,7 @@ export default function ConciergeChat() {
 
     apiClient.connectPlanStream(
       inputs, 
-      (node, status, progress) => updateAgentProgress(node, status),
+      (node, status, progress, nodeData) => updateAgentProgress(node, status, progress, nodeData),
       (result) => setPlanResult(result, 'complete'),
       (err) => setPlanResult(null, 'error')
     );

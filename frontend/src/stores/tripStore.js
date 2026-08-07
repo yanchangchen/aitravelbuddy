@@ -42,7 +42,7 @@ export const useTripStore = create((set) => ({
   updatePartialResult: (nodeData) => set((state) => ({
     partialResult: typeof nodeData === 'object' ? { ...state.partialResult, ...nodeData } : state.partialResult
   })),
-  startPlanning: () => set({ planStatus: 'planning', planResult: null, partialResult: {}, agentProgress: {}, currentNode: 'starting', autoRunPlan: false }),
+  startPlanning: () => set({ planStatus: 'planning', planResult: null, partialResult: {}, agentProgress: {}, currentNode: 'starting', overallProgress: 0, autoRunPlan: false }),
   stopPlanning: () => set((state) => {
     if (state.cancelStreamFn) {
       try { state.cancelStreamFn(); } catch (e) {}
@@ -69,10 +69,32 @@ export const useTripStore = create((set) => ({
   // Agent progress
   agentProgress: {},
   currentNode: null,
-  updateAgentProgress: (node, status) => set((state) => ({
-    currentNode: status === 'running' ? node : state.currentNode,
-    agentProgress: { ...state.agentProgress, [node]: status }
-  })),
+  overallProgress: 0,
+  updateAgentProgress: (node, status, progress, data) => set((state) => {
+    const nodeOrder = ['itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'budget_guardrail', 'agent_as_judge'];
+    const currentIdx = nodeOrder.indexOf(node);
+    const newProgress = { ...state.agentProgress };
+    
+    if (currentIdx !== -1) {
+      for (let i = 0; i < currentIdx; i++) {
+        newProgress[nodeOrder[i]] = 'done';
+      }
+    }
+    newProgress[node] = status;
+
+    const completedCount = Object.values(newProgress).filter(v => v === 'done').length;
+    const computedPct = status === 'done' ? Math.min(100, Math.round(((currentIdx + 1) / nodeOrder.length) * 100)) : Math.round((completedCount / nodeOrder.length) * 100);
+    const pct = progress ? Math.round(progress * 100) : computedPct;
+
+    const newPartial = data && typeof data === 'object' ? { ...state.partialResult, ...data } : state.partialResult;
+
+    return {
+      currentNode: status === 'running' ? node : state.currentNode,
+      agentProgress: newProgress,
+      overallProgress: pct,
+      partialResult: newPartial
+    };
+  }),
 
   // Chat
   conciergeMessages: [{ role: 'ai', content: 'Hello! I am your Travel Buddy. How can I help you plan your trip today?' }],

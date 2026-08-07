@@ -39,7 +39,7 @@ export default function DeskPage() {
     const cancelFn = apiClient.connectPlanStream(
       inputs,
       (node, status, progress, nodeData) => {
-        updateAgentProgress(node, status);
+        updateAgentProgress(node, status, progress, nodeData);
         if (nodeData) {
           store.updatePartialResult(nodeData);
         }

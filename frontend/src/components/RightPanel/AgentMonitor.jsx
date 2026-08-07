@@ -3,7 +3,7 @@ import { useTripStore } from '../../stores/tripStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 
 export default function AgentMonitor() {
-  const { agentProgress, planStatus, currentNode } = useTripStore();
+  const { agentProgress, planStatus, currentNode, overallProgress } = useTripStore();
 
   if (planStatus === 'idle') return null;
 
@@ -17,7 +17,9 @@ export default function AgentMonitor() {
   ];
 
   const completedCount = nodes.filter(n => agentProgress[n.id] === 'done').length;
-  const percent = Math.min(100, Math.round((completedCount / nodes.length) * 100));
+  const runningCount = nodes.filter(n => agentProgress[n.id] === 'running' || currentNode === n.id).length;
+  const computedPercent = Math.min(100, Math.round(((completedCount + (runningCount ? 0.5 : 0)) / nodes.length) * 100));
+  const percent = planStatus === 'complete' ? 100 : Math.max(overallProgress || 0, computedPercent);
 
   return (
     <div style={{ padding: '1rem', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-secondary)' }}>
