@@ -30,19 +30,20 @@ graph TD
 
     subgraph "🤖 Core Multi-Agent Engine (core/)"
         SG["🔄 LangGraph State Machine"]
+        Node0["👑 Planner Lead Orchestrator"]
         Node1["🗺️ Itinerary Agent"]
         Node2["🍽️ Food & Retail Agent"]
         Node3["🏨 Hospitality Agent"]
         Node4["🛒 Purchasing Agent"]
         Guard["💰 Budget Guardrail"]
-        Judge["⚖️ Agent-as-Judge"]
+        Judge["⚖️ Agent-as-Judge (Feedback Consultant)"]
     end
 
     ReactApp <-->|REST & WebSocket| API
     API --> SG
     StreamlitApp -->|Direct Python Call| SG
 
-    SG --> Node1 --> Node2 --> Node3 --> Node4 --> Guard --> Judge
+    SG --> Node0 --> Node1 --> Node2 --> Node3 --> Node4 --> Guard --> Judge
 ```
 
 ---

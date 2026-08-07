@@ -29,8 +29,9 @@ graph TD
     Client[🖥️ Streamlit Web App (ui/)] -->|User Specs & State| App[app.py Router]
     App -->|Initial State| StateGraph[🔄 LangGraph State Machine (core/graph.py)]
 
-    subgraph "Agents Execution Phase"
-        StateGraph --> Itin[🗺️ Itinerary Agent (core/agents.py)]
+    subgraph "Orchestration & Planning Phase"
+        StateGraph --> Orch[👑 Planner Lead Orchestrator (core/agents.py)]
+        Orch --> Itin[🗺️ Itinerary Agent (core/agents.py)]
         Itin --> Food[🍽️ Food & Retail Agent (core/agents.py)]
         Food --> Hosp[🏨 Hospitality Agent (core/agents.py)]
         Hosp --> Purch[🛒 Purchasing Agent (core/agents.py)]
@@ -38,10 +39,11 @@ graph TD
 
     subgraph "Guardrail & Judge Phase"
         Purch --> Guard[💰 Budget Guardrail (core/evaluation.py)]
-        Guard -->|Over Budget & Retries < 3| Itin
-        Guard -->|Within Budget / Unlimited| Judge[⚖️ Agent-as-Judge (core/evaluation.py)]
+        Guard -->|Over Budget & Retries < 3| Orch
+        Guard -->|Within Budget / Unlimited| Judge[⚖️ Agent-as-Judge (Feedback Consultant) (core/evaluation.py)]
         Judge -->|Pass Score >= 6| Appr[✅ Final Output]
-        Judge -->|Fail Score < 6 & Retries >= 3| Fallback[🚨 Terminal Fallback]
+        Judge -->|Fail Score < 6 & Retries < 3| Orch
+        Judge -->|Fail & Retries >= 3| Fallback[🚨 Terminal Fallback]
     end
 
     Appr --> App

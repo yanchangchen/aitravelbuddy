@@ -17,25 +17,30 @@
 
 ## 3. Multi-Agent Pipeline & Nodes
 
-The system consists of four specialized generation nodes and a dual-layer evaluation process:
+The system consists of a central Planner Lead Orchestrator coordinating four specialized generation nodes and a dual-layer evaluation process:
 
-### 3.1 Planning & Purchasing Agents
-1. **Itinerary Agent (`itinerary_agent`):**
+### 3.1 Orchestration, Planning & Purchasing Agents
+1. **Planner Lead Orchestrator (`orchestrator_agent`):**
+   - Serves as the graph entry point and project coordinator.
+   - Enforces invariant requirement constraints (destination, 5-day duration, group composition, SGD currency).
+   - On retry loops, reviews quality consultant feedback and issues surgical, non-destructive directives to downstream agents to preserve valid outputs.
+
+2. **Itinerary Agent (`itinerary_agent`):**
    - Researches top attractions and activities for 5-day trips using real-time search.
    - Generates a day-by-day sightseeing plan with estimated costs in SGD and geographic clustering.
    - Outputs `SIGHTSEEING_TOTAL_SGD: [number]` at the end.
 
-2. **Food & Retail Agent (`food_retail_agent`):**
+3. **Food & Retail Agent (`food_retail_agent`):**
    - Reads the itinerary's daily activity zones to ensure geographic proximity.
    - Recommends real-world breakfast, lunch, dinner, and shopping spots matching the group size and persona in SGD.
    - Outputs `FOOD_RETAIL_TOTAL_SGD: [number]` at the end.
 
-3. **Hospitality Agent (`hospitality_agent`):**
+4. **Hospitality Agent (`hospitality_agent`):**
    - Sources 3 distinct hotel/accommodation options (at varied price points) in SGD suitable for group size.
    - Recommends one primary option matching persona and budget constraints.
    - Outputs `HOTEL_TOTAL_SGD: [number]` at the end.
 
-4. **Purchasing & Booking Agent (`purchasing_agent`):**
+5. **Purchasing & Booking Agent (`purchasing_agent`):**
    - Sourcing round-trip flight costs for the group composition (Adults, Children, Infants) from origin city to target destination.
    - Calculates daily car rental rates and toll/fuel estimates if `self_drive` mode is enabled.
    - Generates real, clickable HTTPS markdown URLs for Flights (Google Flights, Skyscanner), Hotels (Agoda, Booking.com), Car Rentals (Rentalcars.com, Klook), and Attraction Tickets (Klook, GetYourGuide).

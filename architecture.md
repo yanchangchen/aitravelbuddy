@@ -16,15 +16,35 @@ Travel Buddy is built on a modular, multi-agent architecture powered by **LangGr
                            |    (core/graph.py)     |
                            +-----------+------------+
                                        |
-     +-------------------+-------------+---------------+--------------------+
-     |                   |                             |                    |
-     v                   v                             v                    v
-+----+------------+ +----+------------+       +--------+--------+  +--------+--------+
-| itinerary_agent | |food_retail_agent|       |hospitality_agent|  |purchasing_agent |
-| (Sightseeing)   | | (Dining/Retail) |       | (Lodging)       |  |(Flights/Rental) |
-+----+------------+ +----+------------+       +--------+--------+  +--------+--------+
-     |                   |                             |                    |
-     +-------------------+-------------+---------------+--------------------+
+                                       v
+                           +------------------------+
+                           |  orchestrator_agent    |
+                           |  (Planner Orchestrator)|
+                           +-----------+------------+
+                                       |
+                                       v
+                           +------------------------+
+                           |   itinerary_agent      |
+                           |    (Sightseeing)       |
+                           +-----------+------------+
+                                       |
+                                       v
+                           +------------------------+
+                           |  food_retail_agent     |
+                           |   (Dining/Retail)      |
+                           +-----------+------------+
+                                       |
+                                       v
+                           +------------------------+
+                           |  hospitality_agent     |
+                           |     (Lodging)          |
+                           +-----------+------------+
+                                       |
+                                       v
+                           +------------------------+
+                           |   purchasing_agent     |
+                           |   (Flights/Rental)     |
+                           +-----------+------------+
                                        |
                                        v
                            +------------------------+
@@ -35,10 +55,10 @@ Travel Buddy is built on a modular, multi-agent architecture powered by **LangGr
                       +----------------+----------------+
                       | (Pass / Infinite)               | (Retry < 3)
                       v                                 v
-           +--------------------+             +-------------------+
-           |   agent_as_judge   |             |  itinerary_agent  |
-           | (Quality Inspector)|             |   (Retry Loop)    |
-           +----------+---------+             +-------------------+
+           +--------------------+             +----------------------+
+           |   agent_as_judge   |             |  orchestrator_agent  |
+           | (Feedback Consultant)|           |    (Surgical Fix)    |
+           +----------+---------+             +----------------------+
                       |
                       v
            +--------------------+
