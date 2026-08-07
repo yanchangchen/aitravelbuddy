@@ -36,7 +36,8 @@ export default function ConciergeChat() {
   const handlePlan = async () => {
     startPlanning();
     try {
-      const extracted = await apiClient.extractPlanFromChat(conciergeMessages);
+      const res = await apiClient.extractPlanFromChat(conciergeMessages);
+      const extracted = res?.plan || res;
       if (extracted) {
         if (extracted.destination) useTripStore.getState().setLogistics({ destination: extracted.destination });
         if (extracted.persona) useTripStore.getState().setPersona(extracted.persona, extracted.custom_persona_profile || {});
