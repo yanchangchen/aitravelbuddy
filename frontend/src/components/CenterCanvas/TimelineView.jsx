@@ -4,13 +4,38 @@ import { Edit2, Trash2, Map } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function TimelineView() {
-  const { planResult } = useTripStore();
+  const { planResult, planStatus, destination, currentNode } = useTripStore();
+
+  if (planStatus === 'planning') {
+    return (
+      <div style={{ padding: '3rem 2rem', maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1.5 }}>
+          <Map size={64} color="var(--accent-coral)" style={{ marginBottom: '1.5rem' }} />
+        </motion.div>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem', background: 'var(--gradient-coral)', WebkitBackgroundClip: 'text', color: 'transparent' }}>
+          Crafting Your Trip to {destination || 'Destination'}
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '1.125rem' }}>
+          Our 4 collaborative AI agents are researching sights, dining, hotels, and booking logistics in real-time...
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="glass-card animate-pulse" style={{ padding: '1.5rem', opacity: 0.6 }}>
+              <div style={{ height: '20px', width: '30%', background: 'var(--bg-tertiary)', borderRadius: '4px', marginBottom: '0.75rem' }} />
+              <div style={{ height: '16px', width: '70%', background: 'var(--bg-tertiary)', borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (!planResult || !planResult.plan || !planResult.plan.days) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
         <Map size={64} style={{ marginBottom: '1rem', opacity: 0.2 }} />
-        <p style={{ fontSize: '1.25rem' }}>Start a conversation or fill in your trip details to begin</p>
+        <p style={{ fontSize: '1.25rem' }}>Start a conversation or click a Seasonal Pick to generate an itinerary</p>
       </div>
     );
   }

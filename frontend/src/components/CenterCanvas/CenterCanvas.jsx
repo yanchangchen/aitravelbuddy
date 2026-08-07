@@ -7,7 +7,7 @@ import HotelCards from './HotelCards';
 import FlightBooking from './FlightBooking';
 
 export default function CenterCanvas() {
-  const { centerView, setCenterView, planResult } = useTripStore();
+  const { centerView, setCenterView, planResult, planStatus, currentNode, agentProgress } = useTripStore();
 
   const tabs = [
     { id: 'timeline', label: 'Timeline' },
@@ -16,6 +16,18 @@ export default function CenterCanvas() {
     { id: 'hotels', label: 'Hotels' },
     { id: 'flights', label: 'Bookings' }
   ];
+
+  const nodeNames = {
+    itinerary_agent: '🗺️ Sightseeing Itinerary Agent',
+    food_retail_agent: '🍽️ Food & Retail Agent',
+    hospitality_agent: '🏨 Hospitality & Hotel Agent',
+    purchasing_agent: '🛒 Flight & Booking Logistics',
+    budget_guardrail: '💰 Budget Guardrail Audit',
+    agent_as_judge: '⚖️ Agent-as-Judge Quality Audit'
+  };
+
+  const completedCount = Object.values(agentProgress).filter(v => v === 'done').length;
+  const percent = Math.min(100, Math.round((completedCount / 6) * 100));
 
   const renderContent = () => {
     switch (centerView) {
@@ -35,6 +47,21 @@ export default function CenterCanvas() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      {planStatus === 'planning' && (
+        <div style={{ background: 'linear-gradient(90deg, rgba(255,107,107,0.15), rgba(56,189,248,0.15))', borderBottom: '1px solid var(--accent-coral)', padding: '0.75rem 1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="spinner" style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--accent-coral)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
+              Running Agent Graph: {nodeNames[currentNode] || 'Initializing Collaborative Agents...'}
+            </span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--accent-coral)' }}>{percent}% Complete</span>
+          </div>
+          <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${percent}%`, background: 'var(--gradient-coral)', transition: 'width 0.3s ease' }} />
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', padding: '1rem', gap: '0.5rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)' }}>
         {tabs.map(t => (
           <button 
