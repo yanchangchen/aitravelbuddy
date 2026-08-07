@@ -16,16 +16,22 @@ except ImportError:
         TavilySearchResults = None
 
 from core.db import init_db
+from core.logger import get_logger
 from api.routes import trips, stream, profiles, surprise, concierge
 
 load_dotenv()
+logger = get_logger("api_main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("🚀 Starting Travel Buddy FastAPI Backend Service...")
+    
     # Initialize LLM
     gemini_key = os.getenv("GOOGLE_API_KEY")
     if not gemini_key:
-        print("Warning: GOOGLE_API_KEY not set")
+        logger.warning("⚠️ GOOGLE_API_KEY environment variable is not set!")
+    else:
+        logger.info("✅ Google Gemini LLM key configured successfully.")
     
     app.state.llm = ChatGoogleGenerativeAI(
         model='gemini-3.1-flash-lite', 
@@ -35,7 +41,9 @@ async def lifespan(app: FastAPI):
     # Initialize search tool
     tavily_key = os.getenv("TAVILY_API_KEY")
     if not tavily_key:
-        print("Warning: TAVILY_API_KEY not set")
+        logger.warning("⚠️ TAVILY_API_KEY environment variable is not set!")
+    else:
+        logger.info("✅ Tavily Search API key configured successfully.")
     
     app.state.search_tool = TavilySearchResults(
         max_results=3, 
@@ -47,10 +55,13 @@ async def lifespan(app: FastAPI):
     supabase_key = os.getenv("SUPABASE_KEY")
     if supabase_url and supabase_key:
         init_db(supabase_url, supabase_key)
+        logger.info("✅ Supabase Database initialized.")
     else:
-        print("Warning: Supabase credentials not fully set, DB features may not work")
+        logger.info("ℹ️ Supabase credentials omitted — using local JSON storage fallback.")
 
+    logger.info("✨ Travel Buddy API backend ready to serve requests!")
     yield
+    logger.info("🛑 Shutting down Travel Buddy FastAPI backend.")
 
 app = FastAPI(title="Travel Buddy API", lifespan=lifespan)
 

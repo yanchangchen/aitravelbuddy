@@ -1,5 +1,6 @@
 """Structured logger and in-memory log buffer for Travel Buddy troubleshooting."""
 
+import sys
 import logging
 from datetime import datetime
 
@@ -26,17 +27,22 @@ class MemoryLogHandler(logging.Handler):
 
 
 _memory_handler = MemoryLogHandler()
+_console_handler = logging.StreamHandler(sys.stdout)
+
 _formatter = logging.Formatter(
     "[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
     datefmt="%H:%M:%S"
 )
 _memory_handler.setFormatter(_formatter)
+_console_handler.setFormatter(_formatter)
 
 # Configure parent logger for travel_buddy package
 _root_tb_logger = logging.getLogger("travel_buddy")
-_root_tb_logger.setLevel(logging.DEBUG)
+_root_tb_logger.setLevel(logging.INFO)
 if _memory_handler not in _root_tb_logger.handlers:
     _root_tb_logger.addHandler(_memory_handler)
+if _console_handler not in _root_tb_logger.handlers:
+    _root_tb_logger.addHandler(_console_handler)
 
 
 def get_logger(module_name: str) -> logging.Logger:

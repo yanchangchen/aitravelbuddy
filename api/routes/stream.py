@@ -2,10 +2,11 @@ import json
 import asyncio
 from typing import Dict, Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-
 from core.graph import build_graph
+from core.logger import get_logger
 
 router = APIRouter()
+logger = get_logger("ws_stream")
 
 PROGRESS_MAPPING = {
     "itinerary_agent": 0.17,
@@ -21,10 +22,15 @@ PROGRESS_MAPPING = {
 @router.websocket("/plan")
 async def websocket_plan(websocket: WebSocket):
     await websocket.accept()
+    logger.info("🔌 Client connected to WebSocket /api/ws/plan")
     
     try:
         data = await websocket.receive_text()
         request_data = json.loads(data)
+        
+        destination = request_data.get("destination", "Unknown")
+        persona = request_data.get("persona", "Default")
+        logger.info(f"⚡ Starting Multi-Agent Stream: destination='{destination}', persona='{persona}', origin='{request_data.get('origin')}'")
         
         llm = websocket.app.state.llm
         search_tool = websocket.app.state.search_tool
@@ -96,6 +102,7 @@ async def websocket_plan(websocket: WebSocket):
                 node_name = msg["name"]
                 node_output = msg["output"]
                 progress = PROGRESS_MAPPING.get(node_name, 0.0)
+                logger.info(f"  [Agent Node] {node_name} finished (progress={progress:.0%})")
                 
                 await websocket.send_json({
                     "type": "node_update",
@@ -104,12 +111,15 @@ async def websocket_plan(websocket: WebSocket):
                     "data": node_output
                 })
             elif msg["type"] == "done":
+                res = msg["result"]
+                logger.info(f"✅ Multi-Agent Graph complete: destination='{destination}', status='{res.get('status')}', judge='{res.get('judge_verdict')}'")
                 await websocket.send_json({
                     "type": "complete",
-                    "result": msg["result"]
+                    "result": res
                 })
                 break
             elif msg["type"] == "error":
+                logger.error(f"❌ Graph execution error: {msg['message']}")
                 await websocket.send_json({
                     "type": "error",
                     "message": msg["message"]
@@ -119,9 +129,6 @@ async def websocket_plan(websocket: WebSocket):
         await task
 
     except WebSocketDisconnect:
-        pass
+        logger.info("🔌 WebSocket client disconnected.")
     except Exception as e:
-        try:
-            await websocket.send_json({"type": "error", "message": str(e)})
-        except:
-            pass
+        logger.error(f"❌ WebSocket error: {e}")

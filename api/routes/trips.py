@@ -6,8 +6,10 @@ from pydantic import BaseModel
 from core.graph import build_graph
 from core.db import get_saved_trips, get_trip_plan, save_trip_plan
 from core.utils import build_recommendations_text, extract_all_plan_locations
+from core.logger import get_logger
 
 router = APIRouter()
+logger = get_logger("trips_api")
 
 class TripPlanRequest(BaseModel):
     origin: str
@@ -47,6 +49,7 @@ class ExportLocationsRequest(BaseModel):
 
 @router.post("/plan")
 async def plan_trip(request_data: TripPlanRequest, request: Request):
+    logger.info(f"📥 REST POST /api/trips/plan: destination='{request_data.destination}', persona='{request_data.persona}', dates='{request_data.dates}'")
     llm = request.app.state.llm
     search_tool = request.app.state.search_tool
     
@@ -97,20 +100,25 @@ async def plan_trip(request_data: TripPlanRequest, request: Request):
             for node_name, node_output in event.items():
                 if isinstance(node_output, dict):
                     accumulated.update(node_output)
+                    logger.info(f"  [REST Graph Node] {node_name} completed.")
         return accumulated
 
     try:
         result = await asyncio.to_thread(run_graph)
+        logger.info(f"✅ REST Plan completed: status='{result.get('status')}', judge='{result.get('judge_verdict')}'")
         return result
     except Exception as e:
+        logger.error(f"❌ REST Plan error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/saved")
 async def get_saved_trips_endpoint():
     try:
         trips = await asyncio.to_thread(get_saved_trips)
+        logger.info(f"💾 Fetched {len(trips) if trips else 0} saved trips.")
         return trips
     except Exception as e:
+        logger.error(f"❌ Error fetching saved trips: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{trip_id}")
@@ -118,11 +126,14 @@ async def get_trip(trip_id: str):
     try:
         plan = await asyncio.to_thread(get_trip_plan, trip_id)
         if not plan:
+            logger.warning(f"⚠️ Trip plan not found: trip_id='{trip_id}'")
             raise HTTPException(status_code=404, detail="Trip not found")
+        logger.info(f"📖 Loaded trip plan: trip_id='{trip_id}'")
         return plan
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ Error getting trip plan '{trip_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{plan_id}/save")
@@ -136,8 +147,10 @@ async def save_trip(plan_id: str, request_data: TripSaveRequest):
             request_data.dates,
             request_data.state_data
         )
+        logger.info(f"💾 Saved trip plan successfully: plan_id='{plan_id}', destination='{request_data.destination}'")
         return {"status": "success", "plan_id": plan_id}
     except Exception as e:
+        logger.error(f"❌ Error saving trip plan '{plan_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/export/text")
