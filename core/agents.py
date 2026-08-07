@@ -66,6 +66,15 @@ def _invoke_llm_with_retry(prompt: str, max_retries: int = 3) -> str:
 
 def itinerary_agent(state: dict) -> dict:
     """Generate a day-by-day sightseeing itinerary with cost estimates in SGD."""
+    existing_itinerary = state.get("itinerary", "")
+    num_days = state.get("num_days", 5)
+    if num_days <= 1:
+        num_days = 5
+    itinerary_ok = existing_itinerary and all(f"Day {i}" in existing_itinerary for i in range(1, num_days + 1))
+    if itinerary_ok and state.get("next_agent") != "itinerary_agent":
+        logger.info("[Itinerary Agent] Retaining valid existing itinerary.")
+        return {"itinerary": existing_itinerary, "status": "planning"}
+
     origin = state.get("origin", "Singapore")
     destination = state.get("destination", "Tokyo, Japan")
     logger.info(f"[Itinerary Agent] Starting planning from origin='{origin}' to destination='{destination}'")
@@ -127,6 +136,15 @@ def itinerary_agent(state: dict) -> dict:
 
 def food_retail_agent(state: dict) -> dict:
     """Curate dining and retail recommendations in SGD aligned to daily zones."""
+    existing_food = state.get("food_and_retail", "")
+    num_days = state.get("num_days", 5)
+    if num_days <= 1:
+        num_days = 5
+    food_ok = existing_food and all(f"Day {i}" in existing_food for i in range(1, num_days + 1))
+    if food_ok and state.get("next_agent") != "food_retail_agent":
+        logger.info("[Food & Retail Agent] Retaining valid existing dining recommendations.")
+        return {"food_and_retail": existing_food}
+
     destination = state.get("destination", "Tokyo, Japan")
     logger.info(f"[Food & Retail Agent] Curating dining for destination='{destination}'")
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
@@ -186,6 +204,12 @@ def food_retail_agent(state: dict) -> dict:
 
 def hospitality_agent(state: dict) -> dict:
     """Source hotel/accommodation options in SGD matching persona and budget."""
+    existing_hotel = state.get("hotel_recommendations", "")
+    hotel_ok = existing_hotel and "HOTEL_TOTAL_SGD" in existing_hotel
+    if hotel_ok and state.get("next_agent") != "hospitality_agent":
+        logger.info("[Hospitality Agent] Retaining valid existing hotel recommendations.")
+        return {"hotel_recommendations": existing_hotel}
+
     destination = state.get("destination", "Tokyo, Japan")
     logger.info(f"[Hospitality Agent] Sourcing lodging for destination='{destination}'")
     persona_ctx = get_persona_context(state, PERSONA_PROFILES)
@@ -251,6 +275,12 @@ def hospitality_agent(state: dict) -> dict:
 
 def purchasing_agent(state: dict) -> dict:
     """Specialized Purchasing & Booking Agent."""
+    existing_purchasing = state.get("purchasing_guide", "")
+    purchasing_ok = existing_purchasing and "AIRFARE_TOTAL_SGD" in existing_purchasing
+    if purchasing_ok and state.get("next_agent") != "purchasing_agent":
+        logger.info("[Purchasing Agent] Retaining valid existing purchasing guide.")
+        return {"purchasing_guide": existing_purchasing}
+
     origin = state.get("origin", "Singapore")
     destination = state.get("destination", "Tokyo, Japan")
     self_drive = state.get("self_drive", False)

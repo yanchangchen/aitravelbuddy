@@ -84,7 +84,7 @@ export default function ConciergeChat() {
       self_drive: store.selfDrive,
       no_budget: store.noBudget,
       currency: store.currency || 'SGD',
-      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026',
+      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 19, 2026',
       num_days: 5,
       persona: extractedPersona || store.selectedPersona || 'Family',
       custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : customProfile,

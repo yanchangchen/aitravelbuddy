@@ -86,7 +86,7 @@ export default function LandingPage() {
       origin: 'Singapore',
       destination: targetDest,
       startDate: '2026-11-15',
-      endDate: '2026-11-20',
+      endDate: '2026-11-19',
       currency: 'SGD',
       numAdults: 2,
       numChildren: 1,

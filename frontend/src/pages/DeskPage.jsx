@@ -25,7 +25,7 @@ export default function DeskPage() {
       self_drive: store.selfDrive,
       no_budget: store.noBudget,
       currency: store.currency || 'SGD',
-      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026',
+      dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 19, 2026',
       num_days: 5,
       persona: store.selectedPersona,
       custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : null,
@@ -85,7 +85,7 @@ export default function DeskPage() {
     const planId = `plan_${Date.now()}`;
     const dest = store.destination || activeRes.destination || "Tokyo, Japan";
     const travelers = (store.numAdults || 2) + (store.numChildren || 1) + (store.numInfants || 0);
-    const dates = store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 20, 2026';
+    const dates = store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 19, 2026';
     
     try {
       await apiClient.saveTripPlan(planId, {
