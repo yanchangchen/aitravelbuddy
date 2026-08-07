@@ -106,6 +106,7 @@ export default function TimelineView() {
   }
 
   const daysData = activeResult.plan?.days || (activeResult.itinerary ? parseItineraryMarkdown(activeResult.itinerary) : []);
+  daysData.sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
 
   if (daysData.length === 0 && activeResult.itinerary) {
     return (
