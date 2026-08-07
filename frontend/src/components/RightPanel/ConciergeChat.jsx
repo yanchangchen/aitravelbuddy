@@ -21,9 +21,13 @@ export default function ConciergeChat() {
     setInput('');
     setIsTyping(true);
     
+    const store = useTripStore.getState();
+    const currentItinerary = store.planResult?.itinerary || store.partialResult?.itinerary || '';
+    const currentDest = store.destination || store.planResult?.destination || 'Tokyo, Japan';
+
     try {
-      const response = await apiClient.sendConciergeMessage(updatedMessages, 'Traveler planning a trip');
-      const replyContent = response.content || response.text || (typeof response === 'string' ? response : 'I have noted your preferences. Click "Plan Trip" whenever you are ready!');
+      const response = await apiClient.sendConciergeMessage(updatedMessages, 'Traveler planning a trip', currentItinerary, currentDest);
+      const replyContent = response.message || response.content || response.text || (typeof response === 'string' ? response : 'I have noted your preferences. Click "Plan Trip" whenever you are ready!');
       addChatMessage({ role: 'ai', content: replyContent });
     } catch (e) {
       console.warn('Concierge API error, using fallback response:', e);
@@ -84,11 +88,31 @@ export default function ConciergeChat() {
       </div>
       
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {conciergeMessages.map((msg, i) => (
-          <div key={i} className={`chat-bubble-${msg.role}`} style={{ padding: '0.75rem 1rem', maxWidth: '85%' }}>
-            {msg.content}
-          </div>
-        ))}
+        {conciergeMessages.map((msg, i) => {
+          const isAi = msg.role === 'ai';
+          const hasItineraryProposal = isAi && (msg.content.includes('## Day') || msg.content.includes('Day 1:'));
+
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isAi ? 'flex-start' : 'flex-end', gap: '0.35rem' }}>
+              <div className={`chat-bubble-${msg.role}`} style={{ padding: '0.75rem 1rem', maxWidth: '88%', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                {msg.content}
+              </div>
+              {hasItineraryProposal && (
+                <Button 
+                  size="sm" 
+                  onClick={() => {
+                    const dayStart = msg.content.indexOf('## Day') !== -1 ? msg.content.indexOf('## Day') : msg.content.indexOf('Day 1:');
+                    const modText = dayStart !== -1 ? msg.content.substring(dayStart) : msg.content;
+                    useTripStore.getState().updateItineraryText(modText);
+                  }}
+                  style={{ fontSize: '0.75rem', background: 'var(--accent-coral)', color: '#fff', padding: '0.25rem 0.6rem', marginTop: '0.25rem' }}
+                >
+                  Apply Modification to Timeline & Map
+                </Button>
+              )}
+            </div>
+          );
+        })}
         {isTyping && (
           <div className="chat-bubble-ai" style={{ padding: '0.75rem 1rem', maxWidth: '85%' }}>
             <span className="spinner" style={{ letterSpacing: '2px' }}>...</span>

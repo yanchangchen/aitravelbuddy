@@ -34,7 +34,7 @@ export const apiClient = {
   getSeasonalSurprise: () => fetchJSON('/api/surprise/seasonal'),
   getSeasonalPackages: () => fetchJSON('/api/surprise/packages'),
   fetchLiveSeasonalPicks: () => fetchJSON('/api/surprise/refresh', { method: 'POST' }),
-  sendConciergeMessage: (messages, context) => fetchJSON('/api/concierge/chat', { method: 'POST', body: JSON.stringify({ messages, context }) }),
+  sendConciergeMessage: (messages, context, currentItinerary, destination) => fetchJSON('/api/concierge/chat', { method: 'POST', body: JSON.stringify({ messages, user_context: context, current_itinerary: currentItinerary, destination: destination }) }),
   extractPlanFromChat: (messages) => fetchJSON('/api/concierge/extract-plan', { method: 'POST', body: JSON.stringify({ messages }) }),
   getLocations: (result, destination) => fetchJSON('/api/trips/export/locations', { method: 'POST', body: JSON.stringify({ result, destination }) }),
 

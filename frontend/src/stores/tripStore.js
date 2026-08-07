@@ -30,6 +30,16 @@ export const useTripStore = create((set) => ({
     customPersona: { ...state.customPersona, ...customUpdates }
   })),
 
+  // Selected location sync (Timeline <-> Map) & Modifications
+  selectedLocation: null,
+  setSelectedLocation: (loc) => set({ selectedLocation: loc }),
+  locationsList: [],
+  setLocationsList: (locs) => set({ locationsList: locs }),
+  updateItineraryText: (newText) => set((state) => ({
+    planResult: state.planResult ? { ...state.planResult, itinerary: newText } : { destination: state.destination || 'Tokyo, Japan', itinerary: newText },
+    partialResult: { ...state.partialResult, itinerary: newText }
+  })),
+
   // Plan results
   planResult: null,
   partialResult: {},
@@ -42,7 +52,7 @@ export const useTripStore = create((set) => ({
   updatePartialResult: (nodeData) => set((state) => ({
     partialResult: typeof nodeData === 'object' ? { ...state.partialResult, ...nodeData } : state.partialResult
   })),
-  startPlanning: () => set({ planStatus: 'planning', planResult: null, partialResult: {}, agentProgress: {}, currentNode: 'starting', overallProgress: 0, autoRunPlan: false }),
+  startPlanning: () => set({ planStatus: 'planning', planResult: null, partialResult: {}, agentProgress: {}, currentNode: 'starting', overallProgress: 0, selectedLocation: null, autoRunPlan: false }),
   stopPlanning: () => set((state) => {
     if (state.cancelStreamFn) {
       try { state.cancelStreamFn(); } catch (e) {}

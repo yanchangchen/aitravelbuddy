@@ -50,7 +50,7 @@ function parseItineraryMarkdown(text) {
 }
 
 export default function TimelineView() {
-  const { planResult, planStatus, destination, partialResult } = useTripStore();
+  const { planResult, planStatus, destination, partialResult, selectedLocation, setSelectedLocation } = useTripStore();
 
   if (planStatus === 'planning') {
     const currentItinerary = partialResult?.itinerary;
@@ -63,7 +63,7 @@ export default function TimelineView() {
               <span className="spinner" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', border: '2px solid var(--accent-blue)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
               Streaming live multi-agent itinerary generation...
             </div>
-            {renderParsedDays(parsedDays)}
+            {renderParsedDays(parsedDays, selectedLocation, setSelectedLocation)}
           </div>
         );
       }
@@ -118,7 +118,7 @@ export default function TimelineView() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      {renderParsedDays(daysData)}
+      {renderParsedDays(daysData, selectedLocation, setSelectedLocation)}
       
       {activeResult.food_and_retail && (
         <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-subtle)' }}>
@@ -134,7 +134,7 @@ export default function TimelineView() {
   );
 }
 
-function renderParsedDays(days) {
+function renderParsedDays(days, selectedLocation, setSelectedLocation) {
   return days.map((day, i) => (
     <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} style={{ marginBottom: '2.5rem' }}>
       <h2 style={{ fontSize: '1.35rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -153,12 +153,27 @@ function renderParsedDays(days) {
             transport: 'var(--accent-green)'
           };
           const borderColor = borderColors[act.category] || 'var(--accent-coral)';
+          const isSelected = selectedLocation && (selectedLocation.name === act.title || selectedLocation.title === act.title);
 
           return (
-            <div key={j} className="activity-card glass-card" style={{ borderColor, borderLeftWidth: '4px', padding: '1rem 1.25rem' }}>
+            <div 
+              key={j} 
+              id={`timeline-card-${day.day}-${j}`}
+              onClick={() => setSelectedLocation({ name: act.title, title: act.title, day: day.day, category: act.category })}
+              className="activity-card glass-card" 
+              style={{ 
+                borderColor: isSelected ? 'var(--accent-coral)' : borderColor, 
+                borderLeftWidth: '5px', 
+                padding: '1rem 1.25rem',
+                cursor: 'pointer',
+                boxShadow: isSelected ? '0 0 15px rgba(255,107,107,0.35)' : 'none',
+                background: isSelected ? 'rgba(255, 107, 107, 0.08)' : undefined,
+                transition: 'all 0.2s ease'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: '1.5' }}>
+                  <p style={{ margin: 0, fontSize: '0.95rem', color: isSelected ? 'var(--accent-coral)' : 'var(--text-primary)', fontWeight: isSelected ? 600 : 400, lineHeight: '1.5' }}>
                     {act.title}
                   </p>
                 </div>

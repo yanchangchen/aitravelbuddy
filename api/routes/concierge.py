@@ -14,6 +14,8 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
     user_context: Optional[str] = ""
+    current_itinerary: Optional[str] = ""
+    destination: Optional[str] = ""
 
 class ExtractPlanRequest(BaseModel):
     messages: List[Message]
@@ -22,9 +24,19 @@ class ExtractPlanRequest(BaseModel):
 async def chat(request: ChatRequest, req: Request):
     llm = req.app.state.llm
     
-    system_prompt = f"""You are a helpful travel concierge AI.
-Your goal is to help the user plan their trip. 
-User context: {request.user_context}
+    system_prompt = f"""You are Travel Buddy — a warm, knowledgeable, and helpful AI travel concierge buddy.
+Your job is to talk with the traveler about their trip, discuss their active itinerary, offer personalized dining & activity recommendations, ask preference questions, and help refine or modify their plan.
+
+Target Destination: {request.destination or 'Not specified'}
+Traveler Context: {request.user_context or 'Standard Traveler'}
+
+Active Generated Itinerary:
+{request.current_itinerary if request.current_itinerary else '(No itinerary generated yet. Help the user plan one by asking about their preferences!)'}
+
+Instructions:
+1. Be friendly, encouraging, and clear.
+2. If the user asks to modify, replace, or add activities/restaurants to their itinerary, provide your helpful AI response AND if modifying the plan, include the updated day-by-day itinerary block starting with '## Day 1:'.
+3. Ask 1-2 thoughtful preference questions (e.g. food tastes, pace, interests) to help tailor their experience even further!
 """
     langchain_messages = [SystemMessage(content=system_prompt)]
     
