@@ -81,7 +81,7 @@ async def plan_trip(request_data: TripPlanRequest, request: Request):
         "no_budget": request_data.no_budget,
         "currency": request_data.currency,
         "dates": request_data.dates,
-        "num_days": request_data.num_days,
+        "num_days": request_data.num_days or 5,
         "persona": request_data.persona,
         "custom_persona_profile": request_data.custom_persona_profile or {},
         "user_preferences": request_data.user_preferences or {},

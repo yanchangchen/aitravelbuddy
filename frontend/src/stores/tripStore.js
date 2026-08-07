@@ -107,7 +107,7 @@ export const useTripStore = create((set) => ({
   currentNode: null,
   overallProgress: 0,
   updateAgentProgress: (node, status, progress, data) => set((state) => {
-    const nodeOrder = ['itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'budget_guardrail', 'agent_as_judge'];
+    const nodeOrder = ['orchestrator_agent', 'itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'budget_guardrail', 'agent_as_judge'];
     const currentIdx = nodeOrder.indexOf(node);
     const newProgress = { ...state.agentProgress };
     

@@ -84,6 +84,11 @@ def itinerary_agent(state: dict) -> dict:
 
     num_days = state.get("num_days", 5)
 
+    orchestrator_directive = ""
+    user_prefs = state.get("user_preferences") or {}
+    if isinstance(user_prefs, dict) and "orchestrator_directive" in user_prefs:
+        orchestrator_directive = f"\nPLANNER LEAD ORCHESTRATOR DIRECTIVE:\n{user_prefs['orchestrator_directive']}\n"
+
     prompt = (
         f"You are an expert travel itinerary planner.\n\n"
         f"{persona_ctx}\n\n"
@@ -93,13 +98,14 @@ def itinerary_agent(state: dict) -> dict:
         f"NUMBER OF DAYS: {num_days}\n"
         f"TRANSPORT MODE: {drive_note}\n"
         f"{budget_line}\n"
-        f"{critique_ctx}\n\n"
+        f"{critique_ctx}\n"
+        f"{orchestrator_directive}\n"
         f"REAL-TIME RESEARCH (from web search):\n{search_context}\n\n"
         f"GENERATE a detailed day-by-day itinerary covering ALL {num_days} DAYS (Day 1 through Day {num_days}) following this EXACT format:\n\n"
         f"## Day N: [Theme/Title]\n"
-        f"- **[Time Block 1] (TIME):** [Activity] \u2014 Est. cost: S$XX\n"
-        f"- **[Time Block 2] (TIME):** [Activity] \u2014 Est. cost: S$XX\n"
-        f"- **[Time Block ...] (TIME):** [Activity] \u2014 Est. cost: S$XX\n"
+        f"- **[Time Block 1] (TIME):** [Activity] — Est. cost: S$XX\n"
+        f"- **[Time Block 2] (TIME):** [Activity] — Est. cost: S$XX\n"
+        f"- **[Time Block ...] (TIME):** [Activity] — Est. cost: S$XX\n"
         f"- Daily transport/tolls: S$XX\n\n"
         f"**Sightseeing Total: S$[sum]**\n\n"
         f"At the very end, include a line:\n"
@@ -135,6 +141,13 @@ def food_retail_agent(state: dict) -> dict:
     no_budget = state.get("no_budget", False)
     budget_line = "FLEXIBLE / UNLIMITED BUDGET (Focus on best dining)" if no_budget else f"TOTAL TRIP BUDGET: S$ {state['budget']:.2f} {currency}\nBUDGET ALLOCATION FOR FOOD & RETAIL: Approximately 25-30% of total budget"
 
+    num_days = state.get("num_days", 5)
+
+    orchestrator_directive = ""
+    user_prefs = state.get("user_preferences") or {}
+    if isinstance(user_prefs, dict) and "orchestrator_directive" in user_prefs:
+        orchestrator_directive = f"\nPLANNER LEAD ORCHESTRATOR DIRECTIVE:\n{user_prefs['orchestrator_directive']}\n"
+
     search_context = _search(
         f"best {profile.get('dining_style', 'local food')} restaurants in {destination}"
     )
@@ -143,7 +156,8 @@ def food_retail_agent(state: dict) -> dict:
         f"You are a local food and retail expert for {destination}.\n\n"
         f"{persona_ctx}\n\n"
         f"{budget_line}\n"
-        f"{critique_ctx}\n\n"
+        f"{critique_ctx}\n"
+        f"{orchestrator_directive}\n"
         f"THE SIGHTSEEING ITINERARY (align your recommendations to these daily zones):\n"
         f"{state.get('itinerary', 'Not yet available')}\n\n"
         f"REAL-TIME RESEARCH (from web search):\n{search_context}\n\n"
@@ -186,6 +200,13 @@ def hospitality_agent(state: dict) -> dict:
     no_budget = state.get("no_budget", False)
     budget_line = "FLEXIBLE / UNLIMITED BUDGET (Focus on best lodging)" if no_budget else f"TOTAL TRIP BUDGET: S$ {state['budget']:.2f} {currency}\nBUDGET ALLOCATION FOR ACCOMMODATION: Approximately 30-35% of total budget"
 
+    num_days = state.get("num_days", 5)
+
+    orchestrator_directive = ""
+    user_prefs = state.get("user_preferences") or {}
+    if isinstance(user_prefs, dict) and "orchestrator_directive" in user_prefs:
+        orchestrator_directive = f"\nPLANNER LEAD ORCHESTRATOR DIRECTIVE:\n{user_prefs['orchestrator_directive']}\n"
+
     search_context = _search(
         f"best {profile.get('accommodation', 'hotels')} in {destination} {state['dates']}"
     )
@@ -195,7 +216,8 @@ def hospitality_agent(state: dict) -> dict:
         f"{persona_ctx}\n\n"
         f"{budget_line}\n"
         f"TRAVEL DATES: {state['dates']}\n"
-        f"{critique_ctx}\n\n"
+        f"{critique_ctx}\n"
+        f"{orchestrator_directive}\n"
         f"THE SIGHTSEEING ITINERARY (pick hotels near these activity zones):\n"
         f"{state.get('itinerary', 'Not yet available')}\n\n"
         f"REAL-TIME RESEARCH (from web search):\n{search_context}\n\n"
@@ -288,3 +310,50 @@ def purchasing_agent(state: dict) -> dict:
     logger.info(f"[Purchasing Agent Output] ({len(result_text)} chars):\n{result_text}")
 
     return {"purchasing_guide": result_text}
+
+
+def orchestrator_agent(state: dict) -> dict:
+    """Planner Lead Orchestrator Agent.
+    
+    Acts as the project manager:
+    - Lock and enforce global requirements (destination, num_days, travelers_summary, currency).
+    - Checks critique history and creates surgical instructions for down-stream agents.
+    """
+    logger.info(f"[Orchestrator] Auditing requirements. destination='{state.get('destination')}', num_days={state.get('num_days', 5)}")
+    
+    # Strictly lock the days and core parameters
+    num_days = state.get("num_days", 5)
+    if num_days <= 1:
+        num_days = 5
+        
+    critique_history = state.get("critique_history", [])
+    
+    if critique_history:
+        latest_critique = critique_history[-1]
+        logger.info(f"[Orchestrator] Active critique found: '{latest_critique}'")
+        
+        # Prepare surgical routing directives to guide specific agents
+        surgical_directive = (
+            f"The LLM quality judge provided feedback:\n"
+            f"'{latest_critique}'\n\n"
+            f"You MUST refine your recommendations to address this feedback. "
+            f"Do NOT shorten, compress, or rewrite other valid sections. Keep all {num_days} days fully detailed."
+        )
+        
+        user_prefs = state.get("user_preferences") or {}
+        if not isinstance(user_prefs, dict):
+            user_prefs = {"rules": str(user_prefs)}
+            
+        return {
+            "num_days": num_days,
+            "status": "planning",
+            "user_preferences": {
+                **user_prefs,
+                "orchestrator_directive": surgical_directive
+            }
+        }
+    
+    return {
+        "num_days": num_days,
+        "status": "planning"
+    }

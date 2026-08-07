@@ -22,6 +22,7 @@ def build_graph(llm, search_tool):
     evaluation.init(llm)
 
     workflow = StateGraph(TravelBuddyState)
+    workflow.add_node("orchestrator_agent", agents.orchestrator_agent)
     workflow.add_node("itinerary_agent", agents.itinerary_agent)
     workflow.add_node("food_retail_agent", agents.food_retail_agent)
     workflow.add_node("hospitality_agent", agents.hospitality_agent)
@@ -31,7 +32,8 @@ def build_graph(llm, search_tool):
     workflow.add_node("terminal_fallback", evaluation.terminal_fallback)
     workflow.add_node("final_output", evaluation.final_output)
 
-    workflow.add_edge(START, "itinerary_agent")
+    workflow.add_edge(START, "orchestrator_agent")
+    workflow.add_edge("orchestrator_agent", "itinerary_agent")
     workflow.add_edge("itinerary_agent", "food_retail_agent")
     workflow.add_edge("food_retail_agent", "hospitality_agent")
     workflow.add_edge("hospitality_agent", "purchasing_agent")
@@ -47,15 +49,15 @@ def build_graph(llm, search_tool):
             logger.info("   -> Routing to 'terminal_fallback'")
             return "terminal_fallback"
         else:
-            logger.info("   -> Routing back to 'itinerary_agent' (Retry loop)")
-            return "itinerary_agent"
+            logger.info("   -> Routing back to 'orchestrator_agent' (Retry loop)")
+            return "orchestrator_agent"
 
     workflow.add_conditional_edges(
         "budget_guardrail",
         route_after_budget_check,
         {
             "agent_as_judge": "agent_as_judge",
-            "itinerary_agent": "itinerary_agent",
+            "orchestrator_agent": "orchestrator_agent",
             "terminal_fallback": "terminal_fallback",
         },
     )
@@ -67,7 +69,7 @@ def build_graph(llm, search_tool):
         elif status == "quality_failed":
             return "terminal_fallback"
         else:
-            return "itinerary_agent"
+            return "orchestrator_agent"
 
     workflow.add_conditional_edges(
         "agent_as_judge",
@@ -75,12 +77,12 @@ def build_graph(llm, search_tool):
         {
             "final_output": "final_output",
             "terminal_fallback": "terminal_fallback",
-            "itinerary_agent": "itinerary_agent",
+            "orchestrator_agent": "orchestrator_agent",
         },
     )
     workflow.add_edge("final_output", END)
     workflow.add_edge("terminal_fallback", END)
 
     compiled_app = workflow.compile()
-    logger.info("StateGraph compiled successfully with 8 nodes including purchasing_agent.")
+    logger.info("StateGraph compiled successfully with 9 nodes including orchestrator_agent.")
     return compiled_app

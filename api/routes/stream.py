@@ -9,10 +9,11 @@ router = APIRouter()
 logger = get_logger("ws_stream")
 
 PROGRESS_MAPPING = {
-    "itinerary_agent": 0.17,
-    "food_retail_agent": 0.33,
+    "orchestrator_agent": 0.05,
+    "itinerary_agent": 0.20,
+    "food_retail_agent": 0.35,
     "hospitality_agent": 0.50,
-    "purchasing_agent": 0.67,
+    "purchasing_agent": 0.65,
     "budget_guardrail": 0.75,
     "agent_as_judge": 0.88,
     "final_output": 1.0,
@@ -62,7 +63,7 @@ async def websocket_plan(websocket: WebSocket):
             "no_budget": request_data.get("no_budget", False),
             "currency": request_data.get("currency", "SGD"),
             "dates": request_data.get("dates", ""),
-            "num_days": request_data.get("num_days", 1),
+            "num_days": request_data.get("num_days") or 5,
             "persona": request_data.get("persona", ""),
             "custom_persona_profile": request_data.get("custom_persona_profile") or {},
             "user_preferences": request_data.get("user_preferences") or {},
