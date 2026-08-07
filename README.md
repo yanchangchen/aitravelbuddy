@@ -4,31 +4,45 @@
 
 ---
 
-## 🏛️ Application Architecture & Execution Flow
+## 🏛️ Dual Application Architecture
 
-Below is the high-level architecture diagram illustrating how user inputs flow through the Streamlit UI into the LangGraph state machine, invoking domain agents, budget guardrails, and persona compliance evaluators.
+Travel Buddy supports **two frontend choices** sharing the exact same Python multi-agent backend engine (`core/`):
+
+1. **🎨 "The Traveler's Desk" (Modern React + FastAPI Stack)**
+   - **Frontend**: Vite + React 19 + Zustand + Framer Motion + Leaflet maps (lives in `frontend/`)
+   - **Backend**: FastAPI REST & WebSocket streaming server (lives in `api/`)
+   - **Features**: 3-pane studio workspace with zero page reruns, instant interactive timeline editing, Leaflet maps, and real-time agent execution stream.
+
+2. **⚡ Streamlit Web Application (Classic Stack)**
+   - **Framework**: Streamlit (`app.py` + `ui/` package)
+   - **Features**: Rapid python-only web app with progress spinners, tabbed views, and built-in interactive PyDeck charts.
 
 ```mermaid
 graph TD
-    UI[🖥️ Streamlit Web App / UI Package] -->|Initial State| SG[🔄 LangGraph State Machine]
-
-    subgraph "🤖 Collaborative Domain Agents"
-        SG --> Node1[🗺️ Itinerary Agent]
-        Node1 -->|Sightseeing Schedule| Node2[🍽️ Food & Retail Agent]
-        Node2 -->|Dining & Shopping| Node3[🏨 Hospitality Agent]
-        Node3 -->|Accommodation Options| Node4[🛒 Purchasing & Booking Agent]
+    subgraph "Frontend Layer"
+        ReactApp["⚛️ React 19 Workspace (frontend/)"]
+        StreamlitApp["⚡ Streamlit Web App (app.py)"]
     end
 
-    subgraph "⚖️ Evaluation & Quality Loop"
-        Node4 -->|Calculated Costs| Guard[💰 Budget Guardrail]
-        Guard -->|Exceeds Budget & Attempts < 3| Node1
-        Guard -->|Within Budget or Unlimited| Judge[⚖️ Agent-as-Judge]
-        Judge -->|Pass Score >= 6| Approved[✅ Approved Output]
-        Judge -->|Fail Score < 6 & Attempts >= 3| Fallback[🚨 Terminal Fallback]
+    subgraph "API & Orchestration Layer"
+        API["⚡ FastAPI REST + WS Server (api/)"]
     end
 
-    Approved --> UI
-    Fallback --> UI
+    subgraph "🤖 Core Multi-Agent Engine (core/)"
+        SG["🔄 LangGraph State Machine"]
+        Node1["🗺️ Itinerary Agent"]
+        Node2["🍽️ Food & Retail Agent"]
+        Node3["🏨 Hospitality Agent"]
+        Node4["🛒 Purchasing Agent"]
+        Guard["💰 Budget Guardrail"]
+        Judge["⚖️ Agent-as-Judge"]
+    end
+
+    ReactApp <-->|REST & WebSocket| API
+    API --> SG
+    StreamlitApp -->|Direct Python Call| SG
+
+    SG --> Node1 --> Node2 --> Node3 --> Node4 --> Guard --> Judge
 ```
 
 ---
@@ -37,106 +51,95 @@ graph TD
 
 ```text
 aitravelbuddy/
-├── app.py                     # Streamlit application router & main entry point (~150 lines)
-├── requirements.txt           # Project Python dependencies
-├── user_profile.json          # Local persistence for user persona & preference settings
-├── .saved_trips.json          # Local fallback for saved trip plans and agent run states
-├── README.md                  # System architecture & developer documentation
-├── SPECIFICATION.md           # Authoritative system specification & technical reference
-├── core/                      # Core business logic, agents, and graph definition
-│   ├── __init__.py
-│   ├── state.py               # Central TravelBuddyState TypedDict schema definition
-│   ├── graph.py               # StateGraph compilation, node definitions, and routing logic
-│   ├── agents.py              # Domain agents: Itinerary, Food, Hotel, Purchasing
-│   ├── evaluation.py          # Budget guardrail, Agent-as-Judge, and terminal fallback
-│   ├── personas.py            # Pre-configured persona profiles (Solo, Couple, Family, etc.)
-│   ├── profile.py             # User profile JSON persistence & prompt context formatting
-│   ├── surprise.py            # Seasonal destination pick & recommendation engine
-│   ├── db.py                  # Supabase & local storage layer for saving trip states
-│   ├── utils.py               # Location extraction, Pydeck geocoding, Excel export parser
-│   └── logger.py              # In-memory session log buffer & troubleshooting logger
-├── ui/                        # Modular Streamlit UI component package
-│   ├── __init__.py
-│   ├── styles.py              # Custom Light Mode CSS, typography, and badges
-│   ├── sidebar.py             # Setup sidebar, group composition, dates, persona studio
-│   ├── landing.py             # Guided Plan With Me Chatbot & Seasonal Inspiration tabs
-│   └── plan_view.py           # Primary Action Bar, 5 plan tabs, maps, Q&A chat, exports
-└── tests/                     # Automated unit test suite
-    ├── __init__.py
-    ├── test_db.py             # Unit tests for saving/loading trip states & profile data
-    ├── test_evaluation.py     # Unit tests for agent-as-judge & quality failure handling
-    ├── test_graph.py          # Unit tests for graph compilation & execution
-    ├── test_guardrail.py      # Unit tests for budget guardrail routing
-    ├── test_profile.py        # Unit tests for user profile JSON persistence
-    ├── test_surprise.py       # Unit tests for seasonal pick recommendation engine
-    └── test_utils.py          # Unit tests for location parser & geocoding helper
+├── app.py                     # Streamlit router & main entry point
+├── requirements.txt           # Python dependencies (includes FastAPI & Uvicorn)
+├── core/                      # Shared multi-agent engine (UNCHANGED)
+│   ├── state.py               # TravelBuddyState TypedDict schema
+│   ├── graph.py               # StateGraph compilation & routing
+│   ├── agents.py              # Itinerary, Food, Hotel, Purchasing agents
+│   ├── evaluation.py          # Budget guardrail & Agent-as-Judge
+│   ├── personas.py            # Pre-configured persona profiles
+│   ├── profile.py             # User profile JSON persistence
+│   ├── surprise.py            # Seasonal picks recommendation engine
+│   ├── db.py                  # Supabase & local JSON storage
+│   └── utils.py               # Geocoding, parsing & formatting
+├── api/                       # FastAPI Backend Layer
+│   ├── main.py                # FastAPI entry point & CORS
+│   └── routes/                # REST & WebSocket route handlers
+│       ├── trips.py           # Plan execution, saved trips, export
+│       ├── stream.py          # WebSocket live agent execution stream
+│       ├── profiles.py        # User profile CRUD
+│       ├── surprise.py        # Seasonal packages API
+│       └── concierge.py       # AI chat concierge & plan extractor
+├── frontend/                  # React Frontend ("The Traveler's Desk")
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── package.json
+│   ├── playwright.config.js   # E2E test configuration
+│   ├── src/
+│   │   ├── pages/             # LandingPage, DeskPage (3-pane workspace)
+│   │   ├── components/        # LeftDrawer, CenterCanvas, RightPanel
+│   │   ├── stores/            # Zustand state management (tripStore)
+│   │   ├── api/               # REST client & WebSocket streaming API
+│   │   └── styles/            # CSS tokens, layout grid & animations
+│   └── e2e/                   # Playwright E2E UX test suite
+├── ui/                        # Streamlit UI package
+└── tests/                     # Python unittest suite (35 tests)
 ```
 
 ---
 
-## 📊 Centralized Agent State Schema (`TravelBuddyState`)
+## 🚀 Local Development & Execution Guide
 
-The graph operates on a shared state defined in [`core/state.py`](file:///c:/claude/aitravelbuddy/core/state.py):
+### Option A: Run the React + FastAPI "Traveler's Desk" (Recommended)
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `origin` | `str` | Traveler source city (e.g. `"Singapore"`) |
-| `destination` | `str` | Target destination (e.g. `"Kyoto, Japan"`) |
-| `budget` | `float` | Total trip budget in SGD |
-| `num_adults` / `num_children` | `int` | Traveler group composition |
-| `travelers_summary` | `str` | Formatted summary (e.g. `"2 Adults, 1 Child"`) |
-| `self_drive` | `bool` | Includes car rental, fuel, and tolls |
-| `no_budget` | `bool` | Unlimited / flexible budget mode toggle |
-| `dates` | `str` | Travel date string (e.g. `"Nov 15 - Nov 20, 2026"`) |
-| `num_days` | `int` | Total calculated trip duration |
-| `persona` | `str` | Active persona key (`"single"`, `"couple"`, `"family"`, `"custom"`) |
-| `custom_persona_profile` | `dict` | Custom persona rules & preferences |
-| `user_preferences` | `dict` | User dietary, lodging, pace, and interest preferences |
-| `itinerary` | `str` | Day-by-day sightseeing markdown generated by Itinerary Agent |
-| `food_and_retail` | `str` | Daily dining & shopping generated by Food & Retail Agent |
-| `hotel_recommendations` | `str` | Hotel options generated by Hospitality Agent |
-| `purchasing_guide` | `str` | Airfare, transport, and booking links generated by Purchasing Agent |
-| `budget_breakdown` | `str` | Formatted cost summary & budget audit |
-| `judge_verdict` | `str` | Rule-by-rule persona compliance report from Agent-as-Judge |
-| `status` | `str` | Plan status (`"approved"`, `"unapproved"`, `"planning"`) |
-| `quality_failure_reason` | `str` | Detailed failure reason when quality or budget criteria fail |
+1. **Install Python & Node Dependencies**:
+   ```powershell
+   pip install -r requirements.txt
+   cd frontend; npm install; cd ..
+   ```
+
+2. **Start FastAPI Backend Server** (Port 8000):
+   ```powershell
+   uvicorn api.main:app --reload --port 8000
+   ```
+
+3. **Start React Vite Dev Server** (Port 5173):
+   ```powershell
+   cd frontend
+   npm run dev
+   ```
+
+4. Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🚀 Running Locally & Test Execution
+### Option B: Run the Streamlit Application
 
-### 1. Install Dependencies
-```powershell
-pip install -r requirements.txt
-```
-
-### 2. Configure Environment Variables
-Create a `.env` file or export your API keys:
-```powershell
-$env:GOOGLE_API_KEY="your-gemini-api-key"
-$env:TAVILY_API_KEY="your-tavily-api-key"
-$env:GOOGLE_MAPS_API_KEY="optional-google-maps-key"
-```
-
-### 3. Launch Streamlit Application
 ```powershell
 streamlit run app.py
 ```
 
-### 4. Run Automated Test Suite
+---
+
+## 🧪 Testing Suite
+
+### 1. Python Unit Tests (35 Tests)
 ```powershell
 python -m unittest discover -s tests
 ```
 
+### 2. Playwright E2E UX Tests (React App)
+```powershell
+cd frontend
+npm run test:e2e
+```
+
 ---
 
-## 🛠️ Contribution & Development Guidelines
+## ☁️ Deployment Guide (Free Tier)
 
-1. **Adding a New Agent Node**:
-   - Define the node function in [`core/agents.py`](file:///c:/claude/aitravelbuddy/core/agents.py).
-   - Register the node in `build_graph()` inside [`core/graph.py`](file:///c:/claude/aitravelbuddy/core/graph.py).
-   - Update `NODE_LABELS` in [`app.py`](file:///c:/claude/aitravelbuddy/app.py) for visual progress tracking.
+- **Frontend (React)**: Deploy `frontend/` to **Vercel** (Free Hobby Tier).
+- **Backend (FastAPI)**: Deploy root directory to **Render** as a Python Web Service (`uvicorn api.main:app --host 0.0.0.0 --port $PORT`).
+- **Map Tiles**: OpenStreetMap via Leaflet (zero API key required).
 
-2. **Modifying UI Components**:
-   - Edit the specific UI component file under [`ui/`](file:///c:/claude/aitravelbuddy/ui/) rather than altering `app.py`.
-   - Maintain light mode aesthetics with modern HSL/Hex color palettes and Inter typography.
