@@ -42,3 +42,4 @@ class TravelBuddyState(TypedDict, total=False):
     status: str
     judge_verdict: str
     quality_failure_reason: Optional[str]
+    next_agent: str

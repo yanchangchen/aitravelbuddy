@@ -33,7 +33,22 @@ def build_graph(llm, search_tool):
     workflow.add_node("final_output", evaluation.final_output)
 
     workflow.add_edge(START, "orchestrator_agent")
-    workflow.add_edge("orchestrator_agent", "itinerary_agent")
+
+    def route_from_orchestrator(state):
+        next_agent = state.get("next_agent", "itinerary_agent")
+        logger.info(f"[Orchestrator Router] Routing to '{next_agent}'")
+        return next_agent
+
+    workflow.add_conditional_edges(
+        "orchestrator_agent",
+        route_from_orchestrator,
+        {
+            "itinerary_agent": "itinerary_agent",
+            "food_retail_agent": "food_retail_agent",
+            "hospitality_agent": "hospitality_agent",
+            "purchasing_agent": "purchasing_agent",
+        }
+    )
     workflow.add_edge("itinerary_agent", "food_retail_agent")
     workflow.add_edge("food_retail_agent", "hospitality_agent")
     workflow.add_edge("hospitality_agent", "purchasing_agent")

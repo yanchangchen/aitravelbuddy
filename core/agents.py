@@ -317,16 +317,41 @@ def orchestrator_agent(state: dict) -> dict:
     
     Acts as the project manager:
     - Lock and enforce global requirements (destination, num_days, travelers_summary, currency).
-    - Checks critique history and creates surgical instructions for down-stream agents.
+    - Reviews quality feedback and deterministically routes only to the agent that failed.
     """
     logger.info(f"[Orchestrator] Auditing requirements. destination='{state.get('destination')}', num_days={state.get('num_days', 5)}")
     
-    # Strictly lock the days and core parameters
     num_days = state.get("num_days", 5)
     if num_days <= 1:
         num_days = 5
         
+    itinerary = state.get("itinerary", "")
+    food_and_retail = state.get("food_and_retail", "")
+    hotel_recommendations = state.get("hotel_recommendations", "")
+    purchasing_guide = state.get("purchasing_guide", "")
+    
+    # Check what is currently complete and correct
+    itinerary_ok = itinerary and all(f"Day {i}" in itinerary for i in range(1, num_days + 1))
+    food_ok = food_and_retail and all(f"Day {i}" in food_and_retail for i in range(1, num_days + 1))
+    hotel_ok = "HOTEL_TOTAL_SGD" in hotel_recommendations if hotel_recommendations else False
+    purchasing_ok = "AIRFARE_TOTAL_SGD" in purchasing_guide if purchasing_guide else False
+    
+    target_agent = "itinerary_agent"
+    if not itinerary_ok:
+        target_agent = "itinerary_agent"
+    elif not food_ok:
+        target_agent = "food_retail_agent"
+    elif not hotel_ok:
+        target_agent = "hospitality_agent"
+    elif not purchasing_ok:
+        target_agent = "purchasing_agent"
+    else:
+        target_agent = "itinerary_agent"
+        
+    logger.info(f"[Orchestrator] Target agent identified: '{target_agent}'. (Itinerary OK: {bool(itinerary_ok)}, Food OK: {bool(food_ok)}, Hotel OK: {bool(hotel_ok)}, Purchasing OK: {bool(purchasing_ok)})")
+    
     critique_history = state.get("critique_history", [])
+    surgical_directive = ""
     
     if critique_history:
         latest_critique = critique_history[-1]
@@ -340,20 +365,19 @@ def orchestrator_agent(state: dict) -> dict:
             f"Do NOT shorten, compress, or rewrite other valid sections. Keep all {num_days} days fully detailed."
         )
         
-        user_prefs = state.get("user_preferences") or {}
-        if not isinstance(user_prefs, dict):
-            user_prefs = {"rules": str(user_prefs)}
-            
-        return {
-            "num_days": num_days,
-            "status": "planning",
-            "user_preferences": {
-                **user_prefs,
-                "orchestrator_directive": surgical_directive
-            }
+    user_prefs = state.get("user_preferences") or {}
+    if not isinstance(user_prefs, dict):
+        user_prefs = {"rules": str(user_prefs)}
+        
+    if surgical_directive:
+        user_prefs = {
+            **user_prefs,
+            "orchestrator_directive": surgical_directive
         }
-    
+        
     return {
         "num_days": num_days,
-        "status": "planning"
+        "status": "planning",
+        "next_agent": target_agent,
+        "user_preferences": user_prefs
     }
