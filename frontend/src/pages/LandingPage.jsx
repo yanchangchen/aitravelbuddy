@@ -7,9 +7,54 @@ import { useTripStore } from '../stores/tripStore';
 import { apiClient } from '../api/client';
 
 const INITIAL_SEASONAL_PICKS = [
-  { name: 'Kyoto, Japan', tag: 'Autumn Leaves', persona: 'Couple', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80")' },
-  { name: 'Swiss Alps, Switzerland', tag: 'Winter Wonderland', persona: 'Solo', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1531315630201-bb15abeb1653?w=500&q=80")' },
-  { name: 'Santorini, Greece', tag: 'Summer Escape', persona: 'Couple', img: 'linear-gradient(to bottom, transparent, var(--bg-primary)), url("https://images.unsplash.com/photo-1533105079780-92b9be482077?w=500&q=80")' }
+  { 
+    name: 'Kyoto & Hokkaido, Japan', 
+    continent: '🌏 Asia', 
+    tag: 'Autumn Foliage & Lavender', 
+    persona: 'Couple', 
+    reason: 'Temples surrounded by crimson momiji leaves and self-drive lavender routes.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80")' 
+  },
+  { 
+    name: 'Swiss Alps, Switzerland', 
+    continent: '🌍 Europe', 
+    tag: 'Alpine Train Explorer', 
+    persona: 'Couple', 
+    reason: 'Glacier Express trains, crystal mountain lakes, and Jungfrau peaks.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1531315630201-bb15abeb1653?w=500&q=80")' 
+  },
+  { 
+    name: 'Banff & Lake Louise, Canada', 
+    continent: '🌎 North America', 
+    tag: 'Turquoise Lakes & Glaciers', 
+    persona: 'Solo', 
+    reason: 'Icefields Parkway drive, turquoise glacial waters, and alpine wildlife.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1517411032315-54ef2cb783bb?w=500&q=80")' 
+  },
+  { 
+    name: 'Cusco & Machu Picchu, Peru', 
+    continent: '🌎 South America', 
+    tag: 'Inca Trail & Sacred Valley', 
+    persona: 'Custom', 
+    reason: 'Ancient citadel above the clouds, Sacred Valley ruins, and Andean markets.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1526392060635-9d6019884377?w=500&q=80")' 
+  },
+  { 
+    name: 'Cape Town & Garden Route, South Africa', 
+    continent: '🌍 Africa', 
+    tag: 'Table Mountain & Safari', 
+    persona: 'Family', 
+    reason: 'Whale watching along Hermanus, penguin beach, and Stellenbosch vineyards.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=500&q=80")' 
+  },
+  { 
+    name: 'Queenstown & Milford Sound, New Zealand', 
+    continent: '🌏 Oceania', 
+    tag: 'Alpine Fjords & Snow Peaks', 
+    persona: 'Solo', 
+    reason: 'Fjordland cruises, snow-capped alpine peaks, and adventure thrill sports.',
+    img: 'linear-gradient(to bottom, rgba(15,23,42,0.3), var(--bg-primary)), url("https://images.unsplash.com/photo-1589802829985-817e51171b92?w=500&q=80")' 
+  }
 ];
 
 export default function LandingPage() {
@@ -44,14 +89,15 @@ export default function LandingPage() {
     try {
       const data = await apiClient.fetchLiveSeasonalPicks();
       if (data && Array.isArray(data) && data.length > 0) {
-        const formatted = data.slice(0, 3).map((item, idx) => ({
+        const formatted = data.map((item, idx) => ({
           name: item.destination || item.name || 'Zurich, Switzerland',
+          continent: item.continent ? `🌐 ${item.continent}` : INITIAL_SEASONAL_PICKS[idx % 6].continent,
           origin: item.origin || 'Singapore',
           tag: item.title || item.season || 'Seasonal Pick',
           reason: item.reason || 'Peak seasonal weather and local food highlights.',
           persona: item.persona || 'Family',
           selfDrive: item.self_drive || false,
-          img: INITIAL_SEASONAL_PICKS[idx % 3].img
+          img: INITIAL_SEASONAL_PICKS[idx % 6].img
         }));
         setSeasonalPicks(formatted);
       } else {
@@ -111,9 +157,12 @@ export default function LandingPage() {
                 border: '1px solid var(--border-subtle)',
                 cursor: 'pointer'
               }}>
-              <span className="badge" style={{ alignSelf: 'flex-start', marginBottom: '0.5rem', background: 'var(--accent-coral)', color: 'white' }}>{dest.tag}</span>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: 600 }}>{dest.name}</h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Click to apply destination & vibe ➔</p>
+              <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-start', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                <span className="badge" style={{ background: 'rgba(30, 41, 59, 0.9)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}>{dest.continent || '🌐 Global'}</span>
+                <span className="badge" style={{ background: 'var(--accent-coral)', color: 'white' }}>{dest.tag}</span>
+              </div>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.25rem' }}>{dest.name}</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{dest.reason || 'Click to auto-generate trip plan'}</p>
             </motion.div>
           ))}
         </div>
