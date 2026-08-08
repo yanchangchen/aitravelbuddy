@@ -59,19 +59,20 @@ import { animate } from 'framer-motion';
 
 export const AnimatedNumber = ({ value }) => {
   const nodeRef = React.useRef(null);
+  const numValue = typeof value === 'number' && !isNaN(value) ? value : (parseFloat(value) || 0);
   React.useEffect(() => {
     const node = nodeRef.current;
     if (node) {
-      const controls = animate(0, value, {
+      const controls = animate(0, numValue, {
         duration: 1,
         onUpdate(v) {
-          node.textContent = v.toFixed(0);
+          if (node) node.textContent = (v || 0).toFixed(0);
         }
       });
       return () => controls.stop();
     }
-  }, [value]);
-  return <span ref={nodeRef}>{value}</span>;
+  }, [numValue]);
+  return <span ref={nodeRef}>{numValue}</span>;
 };
 
 export const Modal = ({ isOpen, onClose, children }) => {

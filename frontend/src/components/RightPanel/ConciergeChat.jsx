@@ -143,30 +143,33 @@ export default function ConciergeChat() {
       </div>
       
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {conciergeMessages.map((msg, i) => {
-          const isAi = msg.role === 'ai';
-          const hasItineraryProposal = isAi && (msg.content.includes('## Day') || msg.content.includes('Day 1:'));
+        {(conciergeMessages || []).map((msg, i) => {
+          if (!msg) return null;
+          const msgRole = msg.role || 'ai';
+          const isAi = msgRole === 'ai';
+          const contentText = typeof msg.content === 'string' ? msg.content : (typeof msg.content === 'object' ? JSON.stringify(msg.content) : String(msg.content || ''));
+          const hasItineraryProposal = isAi && (contentText.includes('## Day') || contentText.includes('Day 1:'));
 
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isAi ? 'flex-start' : 'flex-end', gap: '0.35rem' }}>
-              <div className={`chat-bubble-${msg.role}`} style={{ padding: '0.75rem 1rem', maxWidth: '88%', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                {msg.content}
+              <div className={`chat-bubble-${msgRole}`} style={{ padding: '0.75rem 1rem', maxWidth: '88%', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                {contentText}
               </div>
               {hasItineraryProposal && (
                 <Button 
                   size="sm" 
                   onClick={() => {
-                    const dayStart = msg.content.indexOf('## Day') !== -1 ? msg.content.indexOf('## Day') : msg.content.indexOf('Day 1:');
-                    const hotelStart = msg.content.indexOf('### Recommended Hotel') !== -1 ? msg.content.indexOf('### Recommended Hotel') : msg.content.indexOf('### Hotel');
+                    const dayStart = contentText.indexOf('## Day') !== -1 ? contentText.indexOf('## Day') : contentText.indexOf('Day 1:');
+                    const hotelStart = contentText.indexOf('### Recommended Hotel') !== -1 ? contentText.indexOf('### Recommended Hotel') : contentText.indexOf('### Hotel');
                     
-                    let modText = msg.content;
+                    let modText = contentText;
                     let hotelText = null;
                     
                     if (hotelStart !== -1 && hotelStart > dayStart) {
-                      modText = msg.content.substring(dayStart, hotelStart).trim();
-                      hotelText = msg.content.substring(hotelStart).trim();
+                      modText = contentText.substring(dayStart, hotelStart).trim();
+                      hotelText = contentText.substring(hotelStart).trim();
                     } else if (dayStart !== -1) {
-                      modText = msg.content.substring(dayStart).trim();
+                      modText = contentText.substring(dayStart).trim();
                     }
                     
                     useTripStore.getState().updateItineraryText(modText, hotelText);

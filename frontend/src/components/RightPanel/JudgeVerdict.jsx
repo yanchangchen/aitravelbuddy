@@ -7,8 +7,10 @@ export default function JudgeVerdict() {
 
   if (!planResult || !planResult.judge_verdict) return null;
 
-  const isApproved = planResult.judge_verdict.toLowerCase().includes('approve');
-  const score = planResult.judge_score || 95;
+  const verdictText = typeof planResult.judge_verdict === 'string' ? planResult.judge_verdict : JSON.stringify(planResult.judge_verdict);
+  const isApproved = verdictText.toLowerCase().includes('approve') || verdictText.toLowerCase().includes('pass');
+  const scoreMatch = verdictText.match(/SCORE:\s*(\d+)/i);
+  const score = scoreMatch ? parseInt(scoreMatch[1], 10) : (planResult.judge_score || (isApproved ? 9 : 5));
 
   return (
     <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-subtle)' }}>
@@ -18,7 +20,7 @@ export default function JudgeVerdict() {
           <Badge variant={isApproved ? 'approved' : 'failed'}>{isApproved ? 'Approved' : 'Failed'}</Badge>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 700, color: isApproved ? 'var(--accent-green)' : 'var(--accent-coral)' }}>{score}</div>
+          <div style={{ fontSize: '2rem', fontWeight: 700, color: isApproved ? 'var(--accent-green)' : 'var(--accent-coral)' }}>{score}/10</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Quality Score</div>
         </div>
       </div>
