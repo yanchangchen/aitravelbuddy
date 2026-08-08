@@ -1,82 +1,49 @@
 # Travel Buddy — User-Centric UI/UX Design Specifications
 
 ## 🎯 1. Design Vision & Philosophy
-Travel Buddy is designed to make complex, multi-agent travel planning effortless, visual, and delightfully interactive. The user interface prioritizes **Clarity, Visual Excellence, and Progressive Disclosure**—ensuring first-time users can generate a customized 5-day travel plan in under 10 seconds while giving power users granular control over personas, group sizes, self-drive preferences, and custom budgets.
+Travel Buddy makes multi-agent travel planning visual, intuitive, and responsive. It features a modern design system across both its **React / Vite Single Page App (Vercel)** and its **Streamlit Studio**:
+- **Clean Light Aesthetics:** `#FFFFFF` background, slate `#F8FAFC` sidebars, `#0F172A` high-contrast typography, and `#FF6B6B` coral accents.
+- **Progressive Disclosure:** Simple one-click planning with deep controls for travelers, personas, budgets, and self-drive options.
+- **Honest Connection Signals:** A real-time traffic light indicator (🟠 blinking wake-up, 🟢 ready, 🔴 offline) keeps users informed of backend status.
 
 ---
 
 ## 🎨 2. Design System & Style Tokens
 
-### 2.1 Color Palette (Clean Light Mode)
-- **Primary Accent:** `#FF6B6B` (Coral Red — Call to Action & Headers)
-- **Secondary Accent:** `#FF8E53` (Warm Amber — Sub-headers & Icons)
-- **Tertiary Accent:** `#FFC857` (Golden Glow — Dividers & Badges)
-- **Background Primary:** `#FFFFFF` (Pure White Canvas)
-- **Background Secondary:** `#F8FAFC` (Slate Tint — Sidebar & Structural Containers)
-- **Surface Cards:** `#FFFFFF` with `#E2E8F0` borders and subtle box-shadow (`0 4px 6px -1px rgba(0, 0, 0, 0.05)`)
-- **Text Primary:** `#0F172A` (Slate 900 — High contrast readability)
-- **Text Secondary:** `#475569` (Slate 600 — Captions & Helper Labels)
-- **Status Badges:**
-  - Approved / Success: Emerald Green (`#10B981` to `#34D399`)
-  - Warning / Retrying: Amber Yellow (`#F59E0B`)
-  - Error / Budget Busted: Rose Red (`#EF4444` to `#F87171`)
+### 2.1 Color Palette
+- **Primary Accent:** `#FF6B6B` (Coral Red — Primary actions, active days, highlights)
+- **Secondary Accent:** `#38BDF8` (Sky Blue — Flights, booking portals, hotels)
+- **Tertiary Accent:** `#F59E0B` (Amber Orange — Dining, ratings, warnings)
+- **Success Tone:** `#10B981` (Emerald Green — Car rentals, approved quality scores)
+- **Canvas Background:** `#FFFFFF` (Light Mode Canvas) / `#0F172A` (Glass Container Dark Trim)
+- **Sidebar & Surface:** `#F8FAFC` with subtle glassmorphic borders (`#E2E8F0`)
 
 ### 2.2 Typography
-- **Primary Font Family:** Inter, sans-serif (Google Fonts)
-- **Header 1 (App Title):** 2.8rem (700 bold), gradient text fill
-- **Header 2 (Section Titles):** 1.4rem (600 semi-bold), `#0F172A`
-- **Header 3 (Card Titles):** 1.1rem (600 semi-bold), `#FF6B6B`
-- **Body Text:** 1.0rem (400 regular), 1.6 line-height
+- **Primary Font:** Inter / Roboto, sans-serif
+- **Headers:** High-contrast `#0F172A` with gradient accents
+- **Body & Metrics:** 1.0rem regular, 1.6 line height
 
 ---
 
-## 📐 3. Information Architecture & Layout Structure
+## 📐 3. React Frontend Workspaces (Vercel)
 
-```
-+-----------------------------------------------------------------------------------+
-| 🌍 Travel Buddy — AI Multi-Agent Travel Planner                                  |
-+------------------------------------+----------------------------------------------+
-| SIDEBAR (Trip Controls)            | MAIN WORKSPACE                               |
-| 💾 Saved Trips (Supabase)          | 🔄 Agent Pipeline Live Progress Status       |
-| 👥 Group Composition (Adults/Kids) | -------------------------------------------- |
-| ✈️ Origin & Destination            | CONSOLIDATED TABBED RESULTS:                 |
-| 🚗 Self-Drive Option Checkbox      |  [🗺️ Trip Plan & Map] [🏨 Hotels & Dining]   |
-| 💰 Infinite Budget / SGD Input     |  [🛒 Flights & Budget] [💬 Travel Assistant] |
-| 📅 Travel Dates (Default 5 Days)   |  [⚙️ Under the Hood]                         |
-| 🎭 Persona Selector + Custom Maker | -------------------------------------------- |
-| ---------------------------------- | 💾 Save Trip to Supabase                     |
-| 🚀 [Plan My Trip] Primary Button   | 📥 Download CSV / Text Report                |
-+------------------------------------+----------------------------------------------+
-```
+### 3.1 Landing Page (`LandingPage.jsx`)
+- **Real-World Seasonal Fresh Picks:** 6 global continent packages auto-refreshed via Gemini AI with continent tags, durations, vibes, and single-click planning.
+- **Dynamic Date Framing:** Auto-calculates start and end dates 2 weeks out for the exact package duration (5–6 days).
+- **Backend Readiness Alert:** Traffic light badge ensures users never trigger planning before the backend server is active.
 
-### 3.1 Progressive Disclosure Pattern
-- **Step 1 (Setup):** Sidebar logically groups demographic and travel inputs. Technical API keys have been removed from the UI entirely to maintain a premium consumer feel.
-- **Step 2 (Execution Feedback):** Live progress bar with animated status text showing node transitions in real time.
-- **Step 3 (Multimodal Results):** Consolidating 10 legacy tabs into 5 logical categories prevents cognitive overload while providing deep context (e.g., Maps and Text Itineraries live together).
-- **Step 4 (Persistence):** Users can save generated trips to Supabase and retrieve them later directly from the sidebar.
+### 3.2 Planning Studio (`DeskPage.jsx`)
+- **Center Canvas Tabs:**
+  1. **Timeline:** Day-by-day sightseeing schedule with deduplication, activity icons, cost tags, and time blocks.
+  2. **Map:** Interactive Google Maps Itinerary Explorer plotting all attractions, hotels, and restaurants with day filter pills (`All`, `Day 1..N`, `Hotels`, `Dining`) and direct Directions links.
+  3. **Hotels:** Curated accommodation cards featuring star ratings (`⭐⭐⭐⭐`), neighborhood location, amenity tags, nightly rates, and estimated total stay in SGD (S$).
+  4. **Bookings:** Round-trip flight search (Skyscanner, Google Flights), accommodation portals (Booking.com, Agoda), car rentals, and attraction ticket booking buttons.
+  5. **Split View:** Side-by-side synchronized view of the Timeline and Google Maps.
+- **Right Panel:** Interactive AI Concierge Chat with plan extraction and live agent node monitor.
 
 ---
 
-## 🗺️ 4. Interactive UX Components
-
-1. **Consolidated Map & Itinerary (`🗺️ Trip Plan & Map`):**
-   - **Pydeck 3D Scatterplot:** Interactive 3D pins for ALL day-by-day itinerary venues with day-coded tooltips.
-   - **OpenStreetMap Embed:** Guaranteed fallback iframe working across all browsers.
-   - **Text Itinerary:** Markdown display of the detailed day-by-day sightseeing plan seamlessly scrolling alongside the map.
-
-2. **Purchasing & Budget Hub (`🛒 Flights & Budget`):**
-   - Direct, clickable HTTPS links for round-trip flights, car rentals, and attraction tickets curated by the specialized Purchasing Agent.
-   - Live budget breakdown tables showing allocation across categories.
-
-3. **Micro-interactions:**
-   - **Hover States:** Feature `.result-card` containers gently transform upward and cast a soft drop-shadow when hovered over, providing a responsive and modern tactile feel.
-
-4. **Conversational Assistant (`💬 Travel Assistant`):**
-   - Built-in chat interface for asking destination advice, packing tips, or local customs recommendations.
-
----
-
-## 🔮 5. Future UX Enhancements Roadmap
-- **Drag-and-Drop Itinerary Builder:** Allow users to reorder daily activities.
-- **Interactive Budget Slider & Live Currency Converter:** Real-time conversion between SGD, USD, EUR, JPY, and GBP.
-- **Mobile PWA Support:** Offline caching for mobile travelers on the go.
+## 🗺️ 4. Streamlit Studio Workspaces (`app.py`)
+- **Full-Width Google Maps Explorer:** Seamlessly embedded Google Maps search and navigation for the chosen destination.
+- **Day-by-Day Tabular Export:** Live table preview with one-click Excel (`.xlsx`) download.
+- **Live Currency Converter:** Real-time SGD conversion across USD, EUR, JPY, GBP, and AUD.

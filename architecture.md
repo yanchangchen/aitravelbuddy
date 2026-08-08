@@ -1,137 +1,98 @@
-# Travel Buddy — Engineering Architecture & System Improvement Roadmap
+# Travel Buddy — Engineering Architecture & System Roadmap
 
-## 🏛️ 1. Current System Architecture
+## 🏛️ 1. Multi-Agent System Architecture
 
-Travel Buddy is built on a modular, multi-agent architecture powered by **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), **Tavily Search API**, and **Streamlit**.
+Travel Buddy is built on a modular, multi-agent architecture powered by **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), **Tavily Search API**, **FastAPI**, **Streamlit**, and **React / Vite**.
 
 ```
-                           +------------------------+
-                           |   Streamlit UI App     |
-                           |       (app.py)         |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  LangGraph StateGraph  |
-                           |    (core/graph.py)     |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  orchestrator_agent    |
-                           |  (Planner Orchestrator)|
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |   itinerary_agent      |
-                           |    (Sightseeing)       |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  food_retail_agent     |
-                           |   (Dining/Retail)      |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  hospitality_agent     |
-                           |     (Lodging)          |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |   purchasing_agent     |
-                           |   (Flights/Rental)     |
-                           +-----------+------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |    budget_guardrail    |
-                           | (Python Cost Summation)|
-                           +-----------+------------+
-                                       |
-                      +----------------+----------------+
-                      | (Pass / Infinite)               | (Retry < 3)
-                      v                                 v
-           +--------------------+             +----------------------+
-           |   agent_as_judge   |             |  orchestrator_agent  |
-           | (Feedback Consultant)|           |    (Surgical Fix)    |
-           +----------+---------+             +----------------------+
-                      |
-                      v
-           +--------------------+
-           |    final_output    |
-           +--------------------+
+                           +------------------------+      +------------------------+
+                           |   Streamlit UI App     |      |   React SPA (Vercel)   |
+                           |       (app.py)         |      |    (frontend/src)      |
+                           +-----------+------------+      +-----------+------------+
+                                       |                               | (WebSocket / REST)
+                                       +---------------+---------------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |  FastAPI Backend Host |
+                                           |      (api/main.py)    |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           | LangGraph StateGraph  |
+                                           |    (core/graph.py)    |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |  orchestrator_agent   |
+                                           | (Lead Orchestrator)   |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |   itinerary_agent     |
+                                           |    (Sightseeing)      |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |  food_retail_agent    |
+                                           |   (Dining/Retail)     |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |  hospitality_agent    |
+                                           |     (Lodging)         |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |   purchasing_agent    |
+                                           |   (Flights/Rental)    |
+                                           +-----------+-----------+
+                                                       |
+                                                       v
+                                           +-----------------------+
+                                           |     quality_agent     |
+                                           | (Budget & Quality QA) |
+                                           +-----------+-----------+
+                                                       |
+                                      +----------------+----------------+
+                                      | (Score >= 8 or Attempts >= 3)   | (Score < 8 & Attempts < 3)
+                                      v                                 v
+                           +--------------------+             +----------------------+
+                           |    final_output    |             |  orchestrator_agent  |
+                           | (Approved / Limit) |             |    (Surgical Fix)    |
+                           +--------------------+             +----------------------+
 ```
 
 ---
 
 ## 🛠️ 2. Core Engineering Principles
 
-### 2.1 State Immutability & Concurrency
-- `TravelBuddyState` uses `TypedDict` with `Annotated[list[str], operator.add]` for thread-safe accumulation of critique history.
-- Pure node functions accept state dictionary copies and return delta updates.
+### 2.1 Unified Quality Agent Evaluation
+- Merged deterministic Python cost calculation with LLM-as-a-Judge persona/duration compliance into a single `quality_agent` node.
+- Computes mathematical cost totals and feeds them into the evaluation model, assigning an objective score from `1 to 10`.
+- If the score is $< 8$ and retry attempts $< 3$, surgical feedback is provided to the `orchestrator_agent` to route only to the components requiring adjustment.
 
-### 2.2 Dual-Layer Guardrail Architecture
-- **Layer 1 (Deterministic):** Pure Python execution (zero LLM token overhead) for cost parsing and range checking.
-- **Layer 2 (Cognitive):** LLM-as-a-Judge inspects persona rules compliance only after budget validation passes.
+### 2.2 Dual-Layer Frontend Ecosystem
+1. **React 18 + Vite SPA (Vercel):**
+   - Live WebSocket event streaming with real-time node progress.
+   - Traffic light connection indicator (🟠 waking up, 🟢 active, 🔴 offline) with startup ping `/api/health`.
+   - 5 CenterCanvas view modes: `Timeline`, `Map` (Google Maps multi-venue plotting & day filtering), `Hotels` (rich accommodation cards), `Bookings` (airfare, car rental, and attraction passes), and `Split View`.
+2. **Streamlit Application:**
+   - Interactive guided plan chatbot, live seasonal inspiration, full-width Google Maps Explorer, and Excel export.
 
-### 2.3 Dependency Injection Pattern
-- Node modules (`agents.py`, `evaluation.py`) expose `init(llm, search_tool)` functions to avoid global state coupling and enable easy unit testing with mock LLMs.
-
----
-
-## 📈 3. Recommended Engineering Improvements
-
-### 3.1 Structured Outputs via Pydantic Schemas
-- **Current State:** Relies on regex pattern matching (`SIGHTSEEING_TOTAL_SGD: [number]`).
-- **Proposed Improvement:** Enforce Pydantic schemas using LangChain `.with_structured_output(ItinerarySchema)` to guarantee 100% type-safe JSON returns from LLMs, eliminating regex parsing edge cases.
-
-```python
-class ActivityItem(BaseModel):
-    time_slot: str
-    activity: str
-    est_cost_sgd: float
-
-class DailyItinerary(BaseModel):
-    day_number: int
-    theme: str
-    activities: List[ActivityItem]
-    sightseeing_total_sgd: float
-```
-
-### 3.2 Async Parallel Agent Execution
-- **Current State:** Agents run sequentially (`itinerary` -> `food_retail` -> `hospitality` -> `purchasing`).
-- **Proposed Improvement:** Once `itinerary_agent` defines daily activity zones, run `food_retail_agent`, `hospitality_agent`, and `purchasing_agent` concurrently via `asyncio.gather()`, reducing total execution latency by **~50%**.
-
-### 3.3 Response Caching & Rate Limit Resilience
-- **LLM Caching:** Implement `langchain.caching.InMemoryCache` or Redis caching for Tavily web search queries to prevent redundant API calls for identical destination queries within short timeframes.
-- **Exponential Backoff:** Wrap LLM invocations with `tenacity` retry logic to gracefully handle temporary API rate limits (HTTP 429) or network timeouts.
-
-### 3.4 Telemetry & Distributed Tracing
-- Integrate **LangSmith** or OpenTelemetry tracing by configuring environment variables (`LANGCHAIN_TRACING_V2=true`). This provides deep visibility into LLM token counts, latency per node, and prompt efficiency.
-
-### 3.5 Automated Testing Suite
-- Create `tests/` directory with `pytest` test suites:
-  - `test_utils.py`: Unit test regex cost extraction and DataFrame parsing.
-  - `test_guardrail.py`: Unit test budget bounds (80-90% SGD calculation, no_budget bypass, 3-strike escalation).
-  - `test_graph.py`: Integration test graph compilation and routing logic with synthetic state.
+### 2.3 Dependency Injection & Stateless Execution
+- Node modules (`agents.py`, `evaluation.py`) use dependency injection (`init(llm, search_tool)`), avoiding global state coupling.
+- WebSockets handle long-running multi-agent pipelines with 25–30s connection timeout allowances, overcoming serverless HTTP gateway limits.
 
 ---
 
-## 📜 4. Persistence Layer (Supabase)
-The application integrates with **Supabase** via `core/db.py` to persist `TravelBuddyState`.
-- **Schema:** The `trip_plans` table stores metadata (destination, persona, travelers, dates) and a `jsonb` column for the complete `state_data`.
-- **Bypass Mechanism:** Loading a saved trip bypasses the LangGraph pipeline entirely and directly hydrates `st.session_state.current_result` from the database.
+## 📈 3. System Verification & Test Coverage
 
----
-
-## 📜 5. Future Code Modification Directives
-Whenever modifying or expanding the codebase in future turns:
-1. Maintain Light Mode aesthetic tokens in `app.py` and `.streamlit/config.toml`.
-2. Keep `TravelBuddyState` schema backwards compatible.
-3. Always validate Python syntax AST before committing code changes.
-4. Ensure all external booking URLs use HTTPS markdown link format.
-5. **DO NOT** re-invoke `app.invoke()` after `app.stream()`. The UI depends on state reconstruction directly from the streamed nodes to prevent silent double-generation delays.
+- **Pytest Suite:** 44 comprehensive test cases covering API routes, database transactions, LangGraph state machine, quality evaluations, geocoding, persona isolation, and seasonal refresh engines.
+- **AST Code Validation:** AST syntax verification is enforced on all Python modules prior to check-in.

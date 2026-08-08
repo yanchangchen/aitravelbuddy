@@ -1,7 +1,7 @@
 # Travel Buddy — System Specifications & Architecture
 
 ## 1. Overview
-**Travel Buddy** is an advanced multi-agent travel planning system built with **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), and **Supabase**. It orchestrates four specialized planning agents to create persona-aware travel itineraries backed by real-time web research via Tavily. The system features a dual-layer evaluation engine combining deterministic Python budget guardrails in **Singapore Dollars (SGD / S$)** (including airfare for custom group compositions, accommodation, dining, sightseeing, and optional self-drive car rentals) with a cognitive LLM-as-a-Judge quality check, custom persona builders, purchasing agents with direct booking links, interactive Google Maps & Pydeck multi-venue location visualizers in a clean **Light Mode UI**, a follow-up Q&A Chat Assistant, and persistent trip-saving capabilities via Supabase.
+**Travel Buddy** is an advanced multi-agent travel planning system built with **LangGraph**, **Google Gemini** (`gemini-3.1-flash-lite`), **FastAPI**, **Streamlit**, and **React / Vite**. It orchestrates specialized planning agents to create persona-aware travel itineraries backed by real-time web research via Tavily. The system features a unified **Quality Agent** combining deterministic Python budget calculations in **Singapore Dollars (SGD / S$)** (including airfare for custom group compositions, accommodation, dining, sightseeing, and optional self-drive car rentals) with cognitive LLM evaluation scoring compliance from `1 to 10`, custom persona builders, purchasing agents with direct booking links, interactive Google Maps multi-venue location visualizers in a clean **Light Mode UI**, a follow-up Q&A Chat Assistant, and persistent trip-saving capabilities via Supabase.
 
 ---
 
@@ -9,24 +9,27 @@
 - **Orchestration:** LangGraph (`StateGraph`) using a centralized `TypedDict` state.
 - **LLM Layer:** `ChatGoogleGenerativeAI` (`gemini-3.1-flash-lite`).
 - **Search Tooling:** `TavilySearchResults` bound directly to planning nodes, purchasing agents, and chat assistant.
-- **Maps Grounding:** Pydeck 3D multi-pin scatterplot maps, OpenStreetMap, & Google Maps Embed API.
+- **Backend Service:** FastAPI REST & WebSocket streaming endpoints hosted on Render.
+- **Frontend Layers:** 
+  1. React 18 / Vite Single Page Application deployed on Vercel (`https://aitravelbu88y.vercel.app/`).
+  2. Streamlit Cloud Application (`https://aitripbuddy.streamlit.app/`).
+- **Maps Grounding:** Embedded Google Maps Location Explorer with multi-venue extraction and day-by-day filtering.
 - **Persistence Layer:** Supabase via `core/db.py` to save/load full JSON state records.
-- **Frontend / Deployment:** Streamlit application (`app.py`) in Light Mode theme with native `st.secrets` integration.
 
 ---
 
 ## 3. Multi-Agent Pipeline & Nodes
 
-The system consists of a central Planner Lead Orchestrator coordinating four specialized generation nodes and a dual-layer evaluation process:
+The system consists of a central Planner Lead Orchestrator coordinating specialized generation nodes and a unified Quality Agent:
 
 ### 3.1 Orchestration, Planning & Purchasing Agents
 1. **Planner Lead Orchestrator (`orchestrator_agent`):**
    - Serves as the graph entry point and project coordinator.
-   - Enforces invariant requirement constraints (destination, 5-day duration, group composition, SGD currency).
+   - Enforces invariant requirement constraints (origin, destination, duration, group composition, SGD currency).
    - On retry loops, reviews quality consultant feedback and issues surgical, non-destructive directives to downstream agents to preserve valid outputs.
 
 2. **Itinerary Agent (`itinerary_agent`):**
-   - Researches top attractions and activities for 5-day trips using real-time search.
+   - Researches top attractions and activities for trips using real-time search.
    - Generates a day-by-day sightseeing plan with estimated costs in SGD and geographic clustering.
    - Outputs `SIGHTSEEING_TOTAL_SGD: [number]` at the end.
 
@@ -43,41 +46,18 @@ The system consists of a central Planner Lead Orchestrator coordinating four spe
 5. **Purchasing & Booking Agent (`purchasing_agent`):**
    - Sourcing round-trip flight costs for the group composition (Adults, Children, Infants) from origin city to target destination.
    - Calculates daily car rental rates and toll/fuel estimates if `self_drive` mode is enabled.
-   - Generates real, clickable HTTPS markdown URLs for Flights (Google Flights, Skyscanner), Hotels (Agoda, Booking.com), Car Rentals (Rentalcars.com, Klook), and Attraction Tickets (Klook, GetYourGuide).
+   - Generates real, clickable HTTPS markdown URLs for Flights (Google Flights, Skyscanner), Hotels (Agoda, Booking.com), Car Rentals (Rentalcars.com, Tabirai), and Attraction Tickets (Klook, GetYourGuide).
    - Outputs `AIRFARE_TOTAL_SGD: [number]` and `CAR_RENTAL_TOTAL_SGD: [number]` at the end.
+
+6. **Quality Agent (`quality_agent`):**
+   - Combines programmatic budget computation with an LLM judge evaluating duration, budget adherence, and persona fit.
+   - Scores the plan on a `1 to 10` scale.
+   - If score is $\ge 8$ or retry limit is reached (3 attempts), routes to `final_output`; otherwise routes feedback back to `orchestrator_agent`.
 
 ---
 
 ## 4. Group Composition & Transport Inclusion
-
 - **Group Composition:** Configurable Adults (default 2), Children >2 yrs (default 1), and Infants <2 yrs (default 0).
 - **Transport Inclusion:** Sums Sightseeing + Food & Retail + Accommodation + Airfare (for entire group) + Car Rental (if self-drive).
 - **Default Currency:** Singapore Dollars (SGD / S$).
-- Pure Python calculation (no LLM reasoning overhead).
-- Parses numeric totals output by each planning node using regex (`LABEL_TOTAL_SGD: amount`).
-- **No-Budget Option:** If `no_budget` mode is enabled, the budget guardrail displays cost breakdown but bypasses bounds testing (`status = 'budget_passed'`).
-
----
-
-## 5. Persona Profiles (Built-In & Custom)
-
-1. **Solo Traveler (`single`):** High tempo (4-6 activities/day), public transit/walking, street food (<$15), hostels/capsule hotels, nightlife & social spots.
-2. **Couple's Getaway (`couple`):** Medium tempo (2-4 activities/day), relaxed mornings (>9:30 AM), aesthetic/romantic dining, boutique lodging, wraps up by 10:30 PM.
-3. **Family Adventure (`family`):** Low tempo (2-3 activities/day), stroller-accessible, early nights (<7:30 PM), kid-friendly dining & playgrounds.
-4. **Budget Backpacker (`backpacker`):** Ultra-lean spending, free/cheap sights, night markets, public transport/walking, social hostels, money-saving tips.
-5. **Business Traveler (`business`):** Built for working professionals. Zero daytime activities. Focuses exclusively on high-convenience transit, early morning coffee, and high-end evening dining/networking near the hotel.
-6. **Custom Persona (`custom`):** User-defined persona title, tempo, mobility preference, dining style, accommodation preference, and custom constraint rules.
-
----
-
-## 6. Full Itinerary Location Mapping, Purchasing Links, Tabular Export & Chat Assistant
-
-- **Full Itinerary Location Mapping:** `extract_all_itinerary_locations` parses all day-by-day sightseeing venues, geocodes their coordinates via Nominatim, and plots interactive pins for every single itinerary attraction on a Pydeck 3D map with day tooltips.
-- **Light Mode Aesthetics:** Clean white background, slate sidebar, soft grey containers, dark text typography.
-- **Consolidated 5-Tab Layout:** Trip Plan & Map, Hotels & Dining, Flights & Budget, Travel Assistant, and Under the Hood.
-- **Purchasing Guide:** Direct HTTPS booking links for flights, accommodations, car rentals, and attraction tickets curated by the specialized purchasing agent.
-- **Saved Trips Database:** Integrated with Supabase, allowing users to save and directly hydrate previous trip itineraries instantly, bypassing LLM agent pipelines.
-- **Google Maps & OpenStreetMap:** Embedded interactive maps for destination attractions with step-by-step API key setup guide.
-- **Tabular Itinerary:** Parses raw Markdown itinerary and purchasing data into a structured Pandas DataFrame (`Day`, `Theme`, `Time Slot`, `Activity Details`, `Est. Cost (SGD)`).
-- **Travel Q&A Assistant:** Interactive chatbot tab using Gemini + Tavily search for follow-up questions, packing advice, and local travel tips.
-- **Download Options:** One-click downloads for both **CSV Data** (`travel_itinerary.csv`), **Full Text Report** (`travel_recommendations.txt`), and **System Debug Logs** (`travel_buddy_debug.log`).
+- **No-Budget Option:** If `no_budget` mode is enabled, the budget guardrail displays cost breakdown but bypasses bounds testing (`status = 'approved'`).
