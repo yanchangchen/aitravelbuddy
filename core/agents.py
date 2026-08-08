@@ -159,8 +159,6 @@ def food_retail_agent(state: dict) -> dict:
     no_budget = state.get("no_budget", False)
     budget_line = "FLEXIBLE / UNLIMITED BUDGET (Focus on best dining)" if no_budget else f"TOTAL TRIP BUDGET: S$ {state['budget']:.2f} {currency}\nBUDGET ALLOCATION FOR FOOD & RETAIL: Approximately 25-30% of total budget"
 
-    num_days = state.get("num_days", 5)
-
     orchestrator_directive = ""
     user_prefs = state.get("user_preferences") or {}
     if isinstance(user_prefs, dict) and "orchestrator_directive" in user_prefs:
