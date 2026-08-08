@@ -5,7 +5,7 @@ import { Send, Zap, Palette } from 'lucide-react';
 import { apiClient } from '../../api/client';
 
 export default function ConciergeChat() {
-  const { conciergeMessages, addChatMessage, isTyping, setIsTyping, startPlanning, updateAgentProgress, setPlanResult } = useTripStore();
+  const { conciergeMessages, addChatMessage, isTyping, setIsTyping, startPlanning, updateAgentProgress, setPlanResult, backendStatus } = useTripStore();
   const [input, setInput] = useState('');
   const endRef = useRef(null);
 
@@ -105,9 +105,28 @@ export default function ConciergeChat() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem' }}>
-        <Button size="sm" onClick={handlePlan} icon={Zap} style={{ flex: 1 }}>Plan Trip</Button>
-        <Button size="sm" variant="secondary" icon={Palette} title="Apply Vibe Only" />
+      <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <Button 
+            size="sm" 
+            onClick={handlePlan} 
+            icon={Zap} 
+            disabled={backendStatus !== 'up'}
+            style={{ 
+              flex: 1,
+              opacity: backendStatus === 'up' ? 1 : 0.6,
+              cursor: backendStatus === 'up' ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {backendStatus === 'up' ? 'Plan Trip' : 'Waking Server...'}
+          </Button>
+          <Button size="sm" variant="secondary" icon={Palette} title="Apply Vibe Only" />
+        </div>
+        {backendStatus !== 'up' && (
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-coral)', textAlign: 'center', fontWeight: 500 }}>
+            {backendStatus === 'waiting' ? '🟠 Waking up backend server. Please wait...' : '🔴 Server offline. Planning service disabled.'}
+          </div>
+        )}
       </div>
       
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

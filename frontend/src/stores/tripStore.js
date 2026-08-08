@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { apiClient } from '../api/client';
 
 export const useTripStore = create((set) => ({
   // Logistics
@@ -162,5 +163,31 @@ export const useTripStore = create((set) => ({
     agentProgress: {},
     currentNode: null,
     conciergeMessages: [{ role: 'ai', content: 'Hello! I am your Travel Buddy. How can I help you plan your trip today?' }]
-  })
+  }),
+
+  // Backend Status
+  backendStatus: 'waiting', // 'waiting' (orange), 'up' (green), 'down' (red)
+  checkBackendHealth: async () => {
+    // Avoid resetting status to waiting if it is already active
+    const current = useTripStore.getState().backendStatus;
+    if (current === 'up') return;
+    
+    set({ backendStatus: 'waiting' });
+    try {
+      await apiClient.checkHealth();
+      set({ backendStatus: 'up' });
+    } catch (e) {
+      console.warn("Backend not ready yet, retrying...", e);
+      // Wait 4 seconds and retry once
+      setTimeout(async () => {
+        try {
+          await apiClient.checkHealth();
+          set({ backendStatus: 'up' });
+        } catch (err) {
+          console.error("Backend health check failed:", err);
+          set({ backendStatus: 'down' });
+        }
+      }, 4000);
+    }
+  }
 }));

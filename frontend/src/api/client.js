@@ -38,6 +38,7 @@ export const apiClient = {
   extractPlanFromChat: (messages, destination) => fetchJSON('/api/concierge/extract-plan', { method: 'POST', body: JSON.stringify({ messages, destination }) }),
   getLocations: (result, destination) => fetchJSON('/api/trips/export/locations', { method: 'POST', body: JSON.stringify({ result, destination }) }),
   exportExcel: (result, destination) => fetchJSON('/api/trips/export/excel', { method: 'POST', body: JSON.stringify({ result, destination }) }),
+  checkHealth: () => fetchJSON('/api/health'),
 
   connectPlanStream: (inputs, onNodeUpdate, onComplete, onError) => {
     let socket = null;

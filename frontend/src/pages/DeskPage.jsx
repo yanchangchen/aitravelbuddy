@@ -71,10 +71,14 @@ export default function DeskPage() {
   };
 
   useEffect(() => {
-    if (autoRunPlan) {
+    store.checkBackendHealth();
+  }, []);
+
+  useEffect(() => {
+    if (autoRunPlan && store.backendStatus === 'up') {
       handleStartPlan();
     }
-  }, [autoRunPlan]);
+  }, [autoRunPlan, store.backendStatus]);
 
   const handleSaveTrip = async () => {
     const activeRes = store.planResult || (Object.keys(store.partialResult).length > 0 ? store.partialResult : null);
@@ -142,10 +146,40 @@ export default function DeskPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <Button variant="icon" icon={ArrowLeft} onClick={() => navigate('/')} title="Back to Landing" />
           <Button variant="icon" icon={Menu} onClick={toggleLeftDrawer} title="Toggle Left Drawer" className="left-drawer-toggle" />
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, background: 'var(--gradient-coral)', WebkitBackgroundClip: 'text', color: 'transparent' }}>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, background: 'var(--gradient-coral)', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0 }}>
             Travel Buddy Desk
           </h1>
           {destination && <span style={{ color: 'var(--text-secondary)', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '1rem' }}>{destination}</span>}
+          
+          {/* Traffic Light Signal in Desk Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.25rem 0.75rem',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.8rem',
+            marginLeft: '0.5rem'
+          }}>
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: store.backendStatus === 'up' ? '#10B981' : store.backendStatus === 'down' ? '#EF4444' : '#F59E0B',
+              boxShadow: store.backendStatus === 'up' 
+                ? '0 0 6px #10B981' 
+                : store.backendStatus === 'down' 
+                  ? '0 0 6px #EF4444' 
+                  : '0 0 6px #F59E0B',
+            }} className={store.backendStatus === 'waiting' ? 'status-dot-waiting' : ''} />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+              {store.backendStatus === 'up' && 'Server Connected'}
+              {store.backendStatus === 'down' && 'Server Offline'}
+              {store.backendStatus === 'waiting' && 'Waking Server...'}
+            </span>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <Button variant="secondary" icon={Save} onClick={handleSaveTrip}>Save</Button>

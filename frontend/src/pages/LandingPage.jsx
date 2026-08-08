@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button, GlassCard } from '../components/shared';
@@ -59,9 +59,13 @@ const INITIAL_SEASONAL_PICKS = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { setLogistics, setPersona, setAutoRunPlan } = useTripStore();
+  const { setLogistics, setPersona, setAutoRunPlan, backendStatus, checkBackendHealth } = useTripStore();
   const [seasonalPicks, setSeasonalPicks] = useState(INITIAL_SEASONAL_PICKS);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    checkBackendHealth();
+  }, []);
 
   const calculateOptimal7DayDates = (tag, destName) => {
     const year = new Date().getFullYear();
@@ -78,6 +82,10 @@ export default function LandingPage() {
   };
 
   const handleCardClick = async (dest) => {
+    if (backendStatus !== 'up') {
+      alert("Please wait for the backend service to wake up before starting the planner!");
+      return;
+    }
     const targetDest = dest.name || dest.title || 'Tokyo, Japan';
     const tag = dest.tag || 'Seasonal Pick';
     const reason = dest.reason || 'Peak seasonal weather and local food highlights.';
@@ -145,6 +153,17 @@ export default function LandingPage() {
 
   return (
     <div style={{ minHeight: '100vh', padding: '4rem 2rem' }}>
+      <style>{`
+        @keyframes orangeBlink {
+          0% { opacity: 0.3; }
+          50% { opacity: 1; }
+          100% { opacity: 0.3; }
+        }
+        .status-dot-waiting {
+          animation: orangeBlink 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
       <header style={{ textAlign: 'center', marginBottom: '4rem' }}>
         <motion.h1 
           initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} 
@@ -156,9 +175,54 @@ export default function LandingPage() {
           style={{ fontSize: '1.5rem', color: 'var(--text-secondary)', marginBottom: '2rem' }}>
           AI-Powered Multi-Agent Travel Planning
         </motion.p>
+
+        {/* Backend Status Traffic Light Banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          padding: '0.75rem 1.5rem',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          maxWidth: '500px',
+          margin: '0 auto 2.5rem',
+          fontSize: '0.9rem',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{
+            width: '12px',
+            height: '12px',
+            borderRadius: '50%',
+            background: backendStatus === 'up' ? '#10B981' : backendStatus === 'down' ? '#EF4444' : '#F59E0B',
+            boxShadow: backendStatus === 'up' 
+              ? '0 0 8px #10B981' 
+              : backendStatus === 'down' 
+                ? '0 0 8px #EF4444' 
+                : '0 0 8px #F59E0B',
+          }} className={backendStatus === 'waiting' ? 'status-dot-waiting' : ''} />
+          <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+            {backendStatus === 'up' && '🟢 Backend Server Active & Ready'}
+            {backendStatus === 'down' && '🔴 Backend Offline. Fallback mode enabled.'}
+            {backendStatus === 'waiting' && '🟠 Server Waking Up (Render cold start)... Please wait.'}
+          </span>
+        </div>
+
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          <Button size="lg" onClick={() => navigate('/desk')} icon={Zap} style={{ fontSize: '1.25rem', padding: '1rem 2rem' }}>
-            Start Planning
+          <Button 
+            size="lg" 
+            onClick={() => backendStatus === 'up' && navigate('/desk')} 
+            icon={Zap} 
+            disabled={backendStatus !== 'up'}
+            style={{ 
+              fontSize: '1.25rem', 
+              padding: '1rem 2rem',
+              opacity: backendStatus === 'up' ? 1 : 0.6,
+              cursor: backendStatus === 'up' ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {backendStatus === 'up' ? 'Start Planning' : 'Backend Waking Up...'}
           </Button>
         </motion.div>
       </header>
