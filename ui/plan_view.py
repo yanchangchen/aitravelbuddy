@@ -115,7 +115,8 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
     ])
 
     with tab_itin_map:
-        st.markdown(result.get("itinerary", "N/A"))
+        itinerary_text = result.get("itinerary", "")
+        st.markdown(itinerary_text if itinerary_text else "N/A")
         st.markdown("---")
         st.markdown(f"### 📍 Complete Trip Map — {res_destination}")
 
