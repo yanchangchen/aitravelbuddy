@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button, GlassCard } from '../components/shared';
-import { Map, Zap, Calendar, Heart, RefreshCw } from 'lucide-react';
+import { Map as MapIcon, Zap, Calendar, Heart, RefreshCw } from 'lucide-react';
 import { useTripStore } from '../stores/tripStore';
 import { apiClient } from '../api/client';
 
@@ -292,7 +292,7 @@ export default function LandingPage() {
           <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Collaborative agents handle research, planning, budgeting, and critique to build the perfect itinerary.</p>
         </GlassCard>
         <GlassCard>
-          <Map size={32} color="var(--accent-blue)" style={{ marginBottom: '1rem' }} />
+          <MapIcon size={32} color="var(--accent-blue)" style={{ marginBottom: '1rem' }} />
           <h3>Smart Budget Guard</h3>
           <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Real-time cost tracking ensures your entire trip stays within your defined budget constraints.</p>
         </GlassCard>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTripStore } from '../../stores/tripStore';
-import { Edit2, Trash2, Map, Utensils, Hotel, ShoppingCart, Calendar } from 'lucide-react';
+import { Edit2, Trash2, Map as MapIcon, Utensils, Hotel, ShoppingCart, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 function parseItineraryMarkdown(text) {
@@ -85,7 +85,7 @@ export default function TimelineView() {
     return (
       <div style={{ padding: '3rem 2rem', maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1.5 }}>
-          <Map size={64} color="var(--accent-coral)" style={{ marginBottom: '1.5rem' }} />
+          <MapIcon size={64} color="var(--accent-coral)" style={{ marginBottom: '1.5rem' }} />
         </motion.div>
         <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem', background: 'var(--gradient-coral)', WebkitBackgroundClip: 'text', color: 'transparent' }}>
           Crafting Your Trip to {destination || 'Destination'}
@@ -111,7 +111,7 @@ export default function TimelineView() {
   if (!activeResult) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '2rem', textAlign: 'center' }}>
-        <Map size={64} style={{ marginBottom: '1rem', opacity: 0.2 }} />
+        <MapIcon size={64} style={{ marginBottom: '1rem', opacity: 0.2 }} />
         <h3 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>No Itinerary Generated Yet</h3>
         <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Click "Start Planning" or select a Seasonal Package to generate a custom itinerary.</p>
       </div>

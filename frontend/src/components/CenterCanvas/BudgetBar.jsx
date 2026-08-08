@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTripStore } from '../../stores/tripStore';
 import { AnimatedNumber } from '../shared';
-import { DollarSign, Coffee, Map, Home, Plane } from 'lucide-react';
+import { DollarSign, Coffee, Map as MapIcon, Home, Plane } from 'lucide-react';
 
 function extractCostFromText(text, tag, defaultVal) {
   if (!text || typeof text !== 'string') return defaultVal;
@@ -45,7 +45,7 @@ export default function BudgetBar() {
     { name: 'Flights', icon: Plane, amount: flightTotal, color: 'var(--accent-blue)' },
     { name: 'Hotels', icon: Home, amount: hotelTotal, color: 'var(--accent-coral)' },
     { name: 'Dining', icon: Coffee, amount: diningTotal, color: 'var(--accent-orange)' },
-    { name: 'Sightseeing', icon: Map, amount: sightTotal, color: 'var(--accent-green)' }
+    { name: 'Sightseeing', icon: MapIcon, amount: sightTotal, color: 'var(--accent-green)' }
   ];
 
   const pct = (!noBudget && budget > 0) ? Math.min((total / budget) * 100, 100) : 100;

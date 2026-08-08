@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTripStore } from '../../stores/tripStore';
 import { Card, Badge } from '../shared';
-import { Map } from 'lucide-react';
+import { Map as MapIcon } from 'lucide-react';
 
 export default function SavedTrips() {
   const { savedTrips, loadSavedTrip } = useTripStore();
@@ -9,7 +9,7 @@ export default function SavedTrips() {
   if (!savedTrips || savedTrips.length === 0) {
     return (
       <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <Map size={32} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+        <MapIcon size={32} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
         <p>No saved trips yet.</p>
       </div>
     );
