@@ -20,12 +20,12 @@ export default function CenterCanvas() {
   ];
 
   const nodeNames = {
+    orchestrator_agent: '👑 Planner Lead Orchestrator',
     itinerary_agent: '🗺️ Sightseeing Itinerary Agent',
     food_retail_agent: '🍽️ Food & Retail Agent',
     hospitality_agent: '🏨 Hospitality & Hotel Agent',
     purchasing_agent: '🛒 Flight & Booking Logistics',
-    budget_guardrail: '💰 Budget Guardrail Audit',
-    agent_as_judge: '⚖️ Agent-as-Judge Quality Audit'
+    quality_agent: '⚖️ Quality Agent Evaluation'
   };
 
   const completedCount = Object.values(agentProgress).filter(v => v === 'done').length;

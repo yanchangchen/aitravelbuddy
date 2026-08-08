@@ -124,12 +124,11 @@ export const apiClient = {
  */
 function runRESTPlanWithProgressTicker(inputs, onNodeUpdate, onComplete, onError, isCancelled) {
   const nodes = [
-    { id: 'itinerary_agent', progress: 0.17 },
-    { id: 'food_retail_agent', progress: 0.33 },
-    { id: 'hospitality_agent', progress: 0.50 },
-    { id: 'purchasing_agent', progress: 0.67 },
-    { id: 'budget_guardrail', progress: 0.75 },
-    { id: 'agent_as_judge', progress: 0.88 }
+    { id: 'itinerary_agent', progress: 0.20 },
+    { id: 'food_retail_agent', progress: 0.40 },
+    { id: 'hospitality_agent', progress: 0.60 },
+    { id: 'purchasing_agent', progress: 0.80 },
+    { id: 'quality_agent', progress: 0.90 }
   ];
 
   let currentIdx = 0;
@@ -149,7 +148,7 @@ function runRESTPlanWithProgressTicker(inputs, onNodeUpdate, onComplete, onError
   }, 2500);
 
   // Immediately set first node
-  onNodeUpdate('itinerary_agent', 'running', 0.17);
+  onNodeUpdate('itinerary_agent', 'running', 0.20);
 
   // Execute REST call
   fetchJSON('/api/trips/plan', { method: 'POST', body: JSON.stringify(inputs) })
@@ -173,7 +172,7 @@ function runRESTPlanWithProgressTicker(inputs, onNodeUpdate, onComplete, onError
 
 function fallbackLocalSimulation(inputs, onNodeUpdate, onComplete, isCancelled) {
   const dest = inputs.destination || 'Kyoto, Japan';
-  const nodes = ['itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'budget_guardrail', 'agent_as_judge'];
+  const nodes = ['itinerary_agent', 'food_retail_agent', 'hospitality_agent', 'purchasing_agent', 'quality_agent'];
   let delay = 0;
   
   nodes.forEach((node, i) => {

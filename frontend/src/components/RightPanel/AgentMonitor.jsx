@@ -8,12 +8,12 @@ export default function AgentMonitor() {
   if (planStatus === 'idle') return null;
 
   const nodes = [
+    { id: 'orchestrator_agent', name: '👑 Planner Lead Orchestrator' },
     { id: 'itinerary_agent', name: '🗺️ Sightseeing Itinerary Agent' },
     { id: 'food_retail_agent', name: '🍽️ Food & Retail Agent' },
     { id: 'hospitality_agent', name: '🏨 Hospitality & Hotel Agent' },
     { id: 'purchasing_agent', name: '🛒 Flight & Booking Logistics' },
-    { id: 'budget_guardrail', name: '💰 Budget Guardrail Audit' },
-    { id: 'agent_as_judge', name: '⚖️ Agent-as-Judge Quality Audit' }
+    { id: 'quality_agent', name: '⚖️ Quality Agent Evaluation' }
   ];
 
   const completedCount = nodes.filter(n => agentProgress[n.id] === 'done').length;
