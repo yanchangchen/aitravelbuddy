@@ -21,8 +21,7 @@ class TestGraph(unittest.TestCase):
             "food_retail_agent",
             "hospitality_agent",
             "purchasing_agent",
-            "budget_guardrail",
-            "agent_as_judge",
+            "quality_agent",
             "terminal_fallback",
             "final_output",
         ]

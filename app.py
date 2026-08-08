@@ -61,8 +61,7 @@ NODE_LABELS = {
     "food_retail_agent": ("🍽️", "Food & Retail Agent", "Curating dining & shopping..."),
     "hospitality_agent": ("🏨", "Hospitality Agent", "Sourcing accommodation..."),
     "purchasing_agent": ("🛒", "Purchasing & Booking Agent", "Sourcing flights, hotels, car rental & booking links..."),
-    "budget_guardrail": ("💰", "Budget Guardrail", "Evaluating total budget constraints..."),
-    "agent_as_judge": ("⚖️", "Agent-as-Judge", "Evaluating persona compliance..."),
+    "quality_agent": ("⚖️", "Quality Agent", "Evaluating duration, budget, and persona constraints..."),
     "final_output": ("✨", "Final Output", "Compiling approved plan..."),
     "terminal_fallback": ("🚨", "Planning Failed", "Budget or quality constraints could not be met."),
 }

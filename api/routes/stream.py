@@ -14,8 +14,7 @@ PROGRESS_MAPPING = {
     "food_retail_agent": 0.35,
     "hospitality_agent": 0.50,
     "purchasing_agent": 0.65,
-    "budget_guardrail": 0.75,
-    "agent_as_judge": 0.88,
+    "quality_agent": 0.85,
     "final_output": 1.0,
     "terminal_fallback": 1.0
 }

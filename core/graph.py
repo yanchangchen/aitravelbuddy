@@ -27,8 +27,7 @@ def build_graph(llm, search_tool):
     workflow.add_node("food_retail_agent", agents.food_retail_agent)
     workflow.add_node("hospitality_agent", agents.hospitality_agent)
     workflow.add_node("purchasing_agent", agents.purchasing_agent)
-    workflow.add_node("budget_guardrail", evaluation.budget_guardrail)
-    workflow.add_node("agent_as_judge", evaluation.agent_as_judge)
+    workflow.add_node("quality_agent", evaluation.quality_agent)
     workflow.add_node("terminal_fallback", evaluation.terminal_fallback)
     workflow.add_node("final_output", evaluation.final_output)
 
@@ -52,33 +51,11 @@ def build_graph(llm, search_tool):
     workflow.add_edge("itinerary_agent", "food_retail_agent")
     workflow.add_edge("food_retail_agent", "hospitality_agent")
     workflow.add_edge("hospitality_agent", "purchasing_agent")
-    workflow.add_edge("purchasing_agent", "budget_guardrail")
-
-    def route_after_budget_check(state):
-        status = state.get("status", "planning")
-        logger.info(f"[Graph Router] Routing decision based on status='{status}'")
-        if status == "budget_passed":
-            logger.info("   -> Routing to 'agent_as_judge'")
-            return "agent_as_judge"
-        elif status == "budget_busted":
-            logger.info("   -> Routing to 'terminal_fallback'")
-            return "terminal_fallback"
-        else:
-            logger.info("   -> Routing back to 'orchestrator_agent' (Retry loop)")
-            return "orchestrator_agent"
-
-    workflow.add_conditional_edges(
-        "budget_guardrail",
-        route_after_budget_check,
-        {
-            "agent_as_judge": "agent_as_judge",
-            "orchestrator_agent": "orchestrator_agent",
-            "terminal_fallback": "terminal_fallback",
-        },
-    )
+    workflow.add_edge("purchasing_agent", "quality_agent")
 
     def route_after_quality_check(state):
         status = state.get("status", "approved")
+        logger.info(f"[Graph Router] Routing decision based on status='{status}'")
         if status == "approved":
             return "final_output"
         elif status == "quality_failed":
@@ -87,7 +64,7 @@ def build_graph(llm, search_tool):
             return "orchestrator_agent"
 
     workflow.add_conditional_edges(
-        "agent_as_judge",
+        "quality_agent",
         route_after_quality_check,
         {
             "final_output": "final_output",
@@ -99,5 +76,5 @@ def build_graph(llm, search_tool):
     workflow.add_edge("terminal_fallback", END)
 
     compiled_app = workflow.compile()
-    logger.info("StateGraph compiled successfully with 9 nodes including orchestrator_agent.")
+    logger.info("StateGraph compiled successfully with 8 nodes including orchestrator_agent.")
     return compiled_app

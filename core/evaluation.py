@@ -20,19 +20,23 @@ def init(llm):
     logger.info("Evaluation module initialized with LLM instance.")
 
 
-def budget_guardrail(state: dict) -> dict:
-    """Deterministic Python budget validation node.
+def quality_agent(state: dict) -> dict:
+    """Unified Quality Evaluation Agent.
 
-    Includes Sightseeing, Food & Retail, Accommodation, Airfare (Flight), and Car Rental (if self-drive).
-    Handles SGD pricing as primary currency and supports optional USD conversion reference.
-    Supports no_budget mode (flexible / unlimited budget).
+    Evaluates:
+      1. Programmatic budget validation (checks costs are within 80-90% range of user budget, if bounded).
+      2. LLM Compliance checks (evaluates duration, persona style, pacing, and preferences).
+    Assigns a quality score from 1 to 10.
+    If score >= 8, sets status to 'approved'.
+    If score < 8, increments attempts and routes back to the orchestrator with surgical critiques (max 3 runs).
     """
+    # 1. Programmatic Cost Calculation
     budget_sgd = state.get("budget", 0.0)
     no_budget = state.get("no_budget", False)
     self_drive = state.get("self_drive", False)
     attempts = state.get("budget_attempts", 0)
 
-    logger.info(f"[Budget Guardrail] Evaluation attempt {attempts + 1}/3. no_budget={no_budget}, self_drive={self_drive}, budget_sgd={budget_sgd:,.2f}")
+    logger.info(f"[Quality Agent] Evaluation attempt {attempts + 1}/3. no_budget={no_budget}, self_drive={self_drive}, budget={budget_sgd}")
 
     sightseeing_sgd = extract_cost(state.get("itinerary", ""), "SIGHTSEEING_TOTAL_SGD")
     food_retail_sgd = extract_cost(state.get("food_and_retail", ""), "FOOD_RETAIL_TOTAL_SGD")
@@ -43,17 +47,15 @@ def budget_guardrail(state: dict) -> dict:
     total_sgd = sightseeing_sgd + food_retail_sgd + hotel_sgd + airfare_sgd + car_rental_sgd
     total_usd_ref = total_sgd * SGD_TO_USD_RATE
 
-    logger.info(
-        f"[Budget Guardrail] Extracted costs: Sightseeing=S${sightseeing_sgd:,.2f}, "
-        f"Food/Retail=S${food_retail_sgd:,.2f}, Hotel=S${hotel_sgd:,.2f}, "
-        f"Airfare=S${airfare_sgd:,.2f}, Car Rental=S${car_rental_sgd:,.2f} -> "
-        f"TOTAL=S${total_sgd:,.2f} SGD (~${total_usd_ref:,.2f} USD)"
-    )
-
     car_line = f"  Car Rental & Tolls:        S${car_rental_sgd:>10,.2f} SGD  (~${car_rental_sgd * SGD_TO_USD_RATE:,.2f} USD)\n" if self_drive else ""
 
+    # Budget Range Determination
+    lower_bound_sgd = 0.80 * budget_sgd
+    upper_bound_sgd = 0.90 * budget_sgd
+
     if no_budget or budget_sgd <= 0:
-        logger.info("[Budget Guardrail] Flexible / Unlimited budget mode active — Guardrail PASSED directly.")
+        budget_passed = True
+        budget_status = "Unlimited / Flexible Budget mode is active (always valid)."
         breakdown = (
             f"Budget Breakdown (Attempt {attempts + 1}/3) — FLEXIBLE / UNLIMITED BUDGET\n"
             f"{'-' * 60}\n"
@@ -66,74 +68,32 @@ def budget_guardrail(state: dict) -> dict:
             f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
             f"  BUDGET MODE:               Unlimited / Flexible (Guardrail Bypassed)\n"
         )
-        return {
-            "budget_breakdown": breakdown,
-            "budget_attempts": attempts + 1,
-            "status": "budget_passed",
-        }
-
-    # Bounded budget check in SGD
-    lower_bound_sgd = 0.80 * budget_sgd
-    upper_bound_sgd = 0.90 * budget_sgd
-
-    logger.info(f"[Budget Guardrail] Bound check: Target range=S${lower_bound_sgd:,.2f} - S${upper_bound_sgd:,.2f} SGD.")
-
-    breakdown = (
-        f"Budget Breakdown (Attempt {attempts + 1}/3)\n"
-        f"{'-' * 60}\n"
-        f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-        f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-        f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-        f"  Airfare (Round-trip):      S${airfare_sgd:>10,.2f} SGD  (~${airfare_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
-        f"{car_line}"
-        f"{'-' * 60}\n"
-        f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
-        f"  TARGET RANGE (80-90%):     S${lower_bound_sgd:,.2f} — S${upper_bound_sgd:,.2f} SGD\n"
-        f"  USER BUDGET:               S${budget_sgd:>10,.2f} SGD\n"
-    )
-
-    if lower_bound_sgd <= total_sgd <= upper_bound_sgd:
-        logger.info(f"[Budget Guardrail] PASSED! Total S${total_sgd:,.2f} SGD within 80-90% safety buffer.")
-        return {
-            "budget_breakdown": breakdown,
-            "budget_attempts": attempts + 1,
-            "status": "budget_passed",
-        }
     else:
-        if total_sgd < lower_bound_sgd:
-            critique = (
-                f"Attempt {attempts + 1}: Total S${total_sgd:,.2f} SGD is TOO LOW "
-                f"(below S${lower_bound_sgd:,.2f} SGD). Upgrade accommodations, airfare, or add premium experiences."
-            )
+        breakdown = (
+            f"Budget Breakdown (Attempt {attempts + 1}/3)\n"
+            f"{'-' * 60}\n"
+            f"  Sightseeing & Activities:  S${sightseeing_sgd:>10,.2f} SGD  (~${sightseeing_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"  Food & Retail:             S${food_retail_sgd:>10,.2f} SGD  (~${food_retail_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"  Accommodation:             S${hotel_sgd:>10,.2f} SGD  (~${hotel_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"  Airfare (Round-trip):      S${airfare_sgd:>10,.2f} SGD  (~${airfare_sgd * SGD_TO_USD_RATE:,.2f} USD)\n"
+            f"{car_line}"
+            f"{'-' * 60}\n"
+            f"  TOTAL ESTIMATED COST:      S${total_sgd:>10,.2f} SGD  (~${total_usd_ref:,.2f} USD)\n"
+            f"  TARGET RANGE (80-90%):     S${lower_bound_sgd:,.2f} — S${upper_bound_sgd:,.2f} SGD\n"
+            f"  USER BUDGET:               S${budget_sgd:>10,.2f} SGD\n"
+        )
+        if lower_bound_sgd <= total_sgd <= upper_bound_sgd:
+            budget_passed = True
+            budget_status = f"PASSED! Total cost of S${total_sgd:,.2f} SGD is within target range."
+        elif total_sgd < lower_bound_sgd:
+            budget_passed = False
+            budget_status = f"FAILED! Total cost of S${total_sgd:,.2f} SGD is TOO LOW (below safety minimum S${lower_bound_sgd:,.2f} SGD). Propose premium experiences or higher-end hotel lodging."
         else:
-            critique = (
-                f"Attempt {attempts + 1}: Total S${total_sgd:,.2f} SGD EXCEEDS "
-                f"target limit of S${upper_bound_sgd:,.2f} SGD. Reduce costs."
-            )
+            budget_passed = False
+            budget_status = f"FAILED! Total cost of S${total_sgd:,.2f} SGD EXCEEDS user budget safety limit of S${upper_bound_sgd:,.2f} SGD. Reduce airfare or lodging costs."
 
-        new_attempts = attempts + 1
-        if new_attempts >= 3:
-            logger.error(f"[Budget Guardrail] STRIKE THREE! {critique} -> Routing to budget_busted_fallback.")
-            return {
-                "budget_breakdown": breakdown,
-                "budget_attempts": new_attempts,
-                "critique_history": [critique],
-                "status": "budget_busted",
-            }
-        else:
-            logger.warning(f"[Budget Guardrail] FAILED attempt {new_attempts}/3. {critique} -> Routing back to planning.")
-            return {
-                "budget_breakdown": breakdown,
-                "budget_attempts": new_attempts,
-                "critique_history": [critique],
-                "status": "planning",
-            }
-
-
-def agent_as_judge(state: dict) -> dict:
-    """Cognitive quality evaluation using a separate LLM call as a READ-ONLY inspector."""
-    logger.info(f"[Agent-as-Judge] Starting persona compliance check for persona='{state['persona']}'")
-    persona_key = state["persona"].lower().strip()
+    # 2. Cognitive LLM Quality Inspection
+    persona_key = state.get("persona", "family").lower().strip()
     if persona_key == "custom" and "custom_persona_profile" in state and isinstance(state["custom_persona_profile"], dict):
         profile = state["custom_persona_profile"]
     else:
@@ -146,9 +106,10 @@ def agent_as_judge(state: dict) -> dict:
     prompt = (
         f"You are an impartial travel plan quality inspector.\n\n"
         f"CRITICAL DIRECTIVE: DO NOT ALTER OR SUGGEST CHANGING THE TRIP DESTINATION ('{destination}'), THE REQUIRED NUMBER OF DAYS ({num_days} DAYS), OR THE TRAVELER COMPOSITION ('{travelers_summary}'). THESE ARE IMMUTABLE USER REQUIREMENTS.\n\n"
-        f"Your ONLY task is to evaluate whether the proposed travel plan fulfills these MANDATORY requirements and persona rules.\n"
-        f"You must be STRICT. If the proposed plan fails to cover all {num_days} days or violates persona rules, explain WHY in your feedback.\n\n"
-        f"## REQUIRED TRIP SPECIFICATION (IMMUTABLE CONSTANTS):\n"
+        f"Your task is to evaluate whether the proposed travel plan fulfills the budget constraints and persona guidelines. Assign a score from 1 to 10, where 10 is fully satisfying all criteria.\n\n"
+        f"## PROGRAMMATIC BUDGET STATUS:\n"
+        f"{budget_status}\n\n"
+        f"## REQUIRED TRIP SPECIFICATION (IMMUTABLE):\n"
         f"- Target Destination: {destination}\n"
         f"- Required Trip Duration: EXACTLY {num_days} DAYS (Day 1 through Day {num_days})\n"
         f"- Group Composition: {travelers_summary}\n\n"
@@ -160,49 +121,60 @@ def agent_as_judge(state: dict) -> dict:
         f"### Accommodation:\n{state.get('hotel_recommendations', 'N/A')}\n\n"
         f"### Booking & Transport Guide:\n{state.get('purchasing_guide', 'N/A')}\n\n"
         f"## YOUR EVALUATION:\n\n"
+        f"If the PROGRAMMATIC BUDGET STATUS above indicates a FAILURE, you MUST award a score of less than 8.\n\n"
         f"Respond in this EXACT format:\n\n"
         f"VERDICT: [PASS or FAIL]\n\n"
         f"SCORE: [1-10]\n\n"
-        f"RULE-BY-RULE CHECK:\n"
-        f"1. Target Destination ({destination}) — [PASS/FAIL] — [Brief evidence]\n"
-        f"2. Trip Length ({num_days} Days) — [PASS/FAIL] — [Evidence]\n"
-        f"3. Persona Rules — [PASS/FAIL] — [Evidence]\n\n"
-        f"OVERALL ASSESSMENT:\n"
-        f"[2-3 sentences summarizing whether the plan fulfills all requirements]"
+        f"SURGICAL SUGGESTIONS:\n"
+        f"[If failed or score < 10, provide specific suggestions here on which component needs fixing. If everything is perfect, write 'None.']"
     )
 
-    logger.debug("[Agent-as-Judge] Invoking Gemini LLM...")
+    logger.debug("[Quality Agent] Invoking Gemini LLM...")
     response = _llm.invoke([HumanMessage(content=prompt)])
     verdict_text = ensure_str(response.content)
+    logger.info(f"[Quality Agent LLM Output] ({len(verdict_text)} chars):\n{verdict_text}")
 
     import re
     score_match = re.search(r"SCORE:\s*(\d+)", verdict_text)
     score = int(score_match.group(1)) if score_match else 9
 
-    attempts = state.get("budget_attempts", 0)
+    surg_match = re.search(r"SURGICAL SUGGESTIONS:\s*(.*)", verdict_text, re.DOTALL | re.IGNORECASE)
+    suggestions = surg_match.group(1).strip() if surg_match else "Plan refinement needed."
 
-    logger.info(f"[Agent-as-Judge Output] ({len(verdict_text)} chars, Score: {score}/10):\n{verdict_text}")
-    
-    if score >= 6:
-        return {"judge_verdict": verdict_text, "status": "approved"}
+    # Enforce programmatic budget safety override
+    if not budget_passed and score >= 8:
+        logger.warning(f"[Quality Agent] Programmatic budget check failed, overriding score {score} to 7.")
+        score = 7
+
+    new_attempts = attempts + 1
+
+    if score >= 8:
+        logger.info(f"[Quality Agent] Plan APPROVED with score {score}/10.")
+        return {
+            "budget_breakdown": breakdown,
+            "budget_attempts": new_attempts,
+            "judge_verdict": verdict_text,
+            "status": "approved",
+        }
     else:
-        new_attempts = attempts + 1
-        critique = f"Attempt {new_attempts}: Quality Score was {score}/10 (Below Average). You MUST improve adherence to persona rules: {verdict_text}"
+        critique = f"Attempt {new_attempts}: Quality Score {score}/10. {suggestions}"
         if new_attempts >= 3:
-            logger.error("[Agent-as-Judge] STRIKE THREE on Quality. Routing to terminal fallback.")
+            logger.error(f"[Quality Agent] STRIKE THREE on Quality. Routing to terminal fallback. {critique}")
             return {
-                "judge_verdict": verdict_text,
+                "budget_breakdown": breakdown,
                 "budget_attempts": new_attempts,
+                "judge_verdict": verdict_text,
                 "critique_history": [critique],
-                "status": "quality_failed"
+                "status": "quality_failed",
             }
         else:
-            logger.warning(f"[Agent-as-Judge] Quality failed attempt {new_attempts}/3. Routing back to planning.")
+            logger.warning(f"[Quality Agent] Quality failed (Score {score}/10). Routing back to orchestrator. Critique: {critique}")
             return {
-                "judge_verdict": verdict_text,
+                "budget_breakdown": breakdown,
                 "budget_attempts": new_attempts,
+                "judge_verdict": verdict_text,
                 "critique_history": [critique],
-                "status": "planning"
+                "status": "planning",
             }
 
 

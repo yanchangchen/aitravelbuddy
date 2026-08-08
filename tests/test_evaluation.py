@@ -1,10 +1,17 @@
 """Unit tests for terminal fallback and quality evaluation failure explanations."""
 
 import unittest
-from core.evaluation import terminal_fallback, agent_as_judge
+from core.evaluation import terminal_fallback, quality_agent
+import unittest
+from unittest.mock import MagicMock
+import core.evaluation as eval_mod
 
 
 class TestEvaluation(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_llm = MagicMock()
+        eval_mod._llm = self.mock_llm
 
     def test_terminal_fallback_preserves_plan_and_provides_reasons(self):
         sample_state = {
@@ -40,6 +47,29 @@ class TestEvaluation(unittest.TestCase):
         self.assertIn("Attempt 1", reason)
         self.assertIn("SCORE: 4/10", reason)
         self.assertIn("HOW TO RELAX CRITERIA", reason)
+
+    def test_quality_agent_score_parsing(self):
+        # Mock LLM response with high score
+        self.mock_llm.invoke.return_value = MagicMock(content="VERDICT: PASS\nSCORE: 9\nSURGICAL SUGGESTIONS: None.")
+        state = {
+            "budget": 3000.0,
+            "no_budget": True,
+            "itinerary": "SIGHTSEEING_TOTAL_SGD: 100",
+            "food_and_retail": "FOOD_RETAIL_TOTAL_SGD: 100",
+            "hotel_recommendations": "HOTEL_TOTAL_SGD: 100",
+            "purchasing_guide": "AIRFARE_TOTAL_SGD: 100",
+            "persona": "family",
+            "num_days": 5,
+        }
+        res = quality_agent(state)
+        self.assertEqual(res["status"], "approved")
+
+        # Mock LLM response with low score
+        self.mock_llm.invoke.return_value = MagicMock(content="VERDICT: FAIL\nSCORE: 5\nSURGICAL SUGGESTIONS: Missing Day 5 details.")
+        state["no_budget"] = False
+        res = quality_agent(state)
+        self.assertEqual(res["status"], "planning")
+        self.assertIn("Quality Score 5/10", res["critique_history"][0])
 
 
 if __name__ == "__main__":
