@@ -67,34 +67,36 @@ export default function LandingPage() {
     checkBackendHealth();
   }, []);
 
-  const calculateOptimal7DayDates = (tag, destName) => {
-    const year = new Date().getFullYear();
-    const s = ((tag || '') + ' ' + (destName || '')).toLowerCase();
-    
-    if (s.includes('autumn') || s.includes('fall') || s.includes('momiji')) {
-      return { startStr: `Oct 15, ${year}`, endStr: `Oct 21, ${year}` };
-    } else if (s.includes('winter') || s.includes('snow') || s.includes('ice')) {
-      return { startStr: `Jan 10, ${year + 1}`, endStr: `Jan 16, ${year + 1}` };
-    } else if (s.includes('spring') || s.includes('sakura') || s.includes('tulip') || s.includes('blossom')) {
-      return { startStr: `Apr 05, ${year}`, endStr: `Apr 11, ${year}` };
+  // When backend becomes active, automatically fetch the real-world seasonal picks
+  useEffect(() => {
+    if (backendStatus === 'up') {
+      handleRefreshPicks();
     }
-    return { startStr: `Jul 10, ${year}`, endStr: `Jul 16, ${year}` };
-  };
+  }, [backendStatus]);
 
   const handleCardClick = async (dest) => {
     if (backendStatus !== 'up') {
       alert("Please wait for the backend service to wake up before starting the planner!");
       return;
     }
-    const targetDest = dest.name || dest.title || 'Tokyo, Japan';
-    const tag = dest.tag || 'Seasonal Pick';
+    const targetDest = dest.name || dest.destination || dest.title || 'Tokyo, Japan';
+    const tag = dest.tag || dest.title || 'Seasonal Pick';
     const reason = dest.reason || 'Peak seasonal weather and local food highlights.';
+    const duration = dest.duration_days || dest.duration || 5;
+
+    // Calculate dates starting 2 weeks from now for optimal seasonal experience
+    const today = new Date();
+    const startDateObj = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const endDateObj = new Date(startDateObj.getTime() + (duration - 1) * 24 * 60 * 60 * 1000);
+    
+    const startStr = startDateObj.toISOString().split('T')[0];
+    const endStr = endDateObj.toISOString().split('T')[0];
     
     setLogistics({
-      origin: 'Singapore',
+      origin: dest.origin || 'Singapore',
       destination: targetDest,
-      startDate: '2026-11-15',
-      endDate: '2026-11-19',
+      startDate: startStr,
+      endDate: endStr,
       currency: 'SGD',
       numAdults: 2,
       numChildren: 1,
@@ -104,19 +106,19 @@ export default function LandingPage() {
       budget: 0
     });
     
-    setPersona('Family', {
+    setPersona(dest.persona === 'couple' ? 'Couple' : dest.persona === 'single' ? 'Solo' : 'Family', {
       title: dest.title || targetDest,
-      rules: `Family vacation with 2 Adults & 1 Child. Agent recommendations for top sights, local dining, and shopping in ${targetDest} during ${tag}.`,
+      rules: `Trip for ${targetDest}. Seasonal context: ${tag} — ${reason}. Curate local sights, dining, and scenic routes.`,
       tempo: 'Medium',
       dining: 'Agent Recommended Sights & Food',
       lodging: 'Boutique & Family Stays'
     });
 
     const seasonalGreeting = `✨ Welcome to your ${targetDest} (${tag}) Seasonal Escape! 🌍 I'm Travel Buddy, your global AI travel concierge.\n\n` +
-      `For this 5-day trip, I've configured our collaborative AI agents with these seasonal highlights:\n` +
+      `For this ${duration}-day trip, I've configured our collaborative AI agents with these seasonal highlights:\n` +
       `📍 Destination: ${targetDest}\n` +
       `🌟 Seasonal Vibe: ${tag} — ${reason}\n` +
-      `👥 Travelers: 2 Adults, 1 Child (Origin: Singapore | SGD Budget: Flexible)\n\n` +
+      `👥 Travelers: 2 Adults, 1 Child (Origin: ${dest.origin || 'Singapore'} | SGD Budget: Flexible)\n\n` +
       `Our multi-agent pipeline is building your live itinerary right now! While they research, what are your top priorities for ${targetDest} (e.g. food, relaxation, photography, or culture)?`;
 
     useTripStore.getState().setConciergeGreeting(seasonalGreeting);
@@ -128,21 +130,40 @@ export default function LandingPage() {
     setIsRefreshing(true);
     try {
       const data = await apiClient.fetchLiveSeasonalPicks();
-      if (data && Array.isArray(data) && data.length > 0) {
-        const formatted = data.map((item, idx) => ({
-          name: item.destination || item.name || 'Zurich, Switzerland',
-          continent: item.continent ? `🌐 ${item.continent}` : INITIAL_SEASONAL_PICKS[idx % 6].continent,
+      const rawList = Array.isArray(data) ? data : (data?.results || []);
+      if (rawList && Array.isArray(rawList) && rawList.length > 0) {
+        const formatted = rawList.map((item, idx) => ({
+          name: item.destination || item.name || item.title || 'Zurich, Switzerland',
+          continent: item.continent ? (item.continent.includes('🌐') || item.continent.includes('🌏') || item.continent.includes('🌍') || item.continent.includes('🌎') ? item.continent : `🌐 ${item.continent}`) : INITIAL_SEASONAL_PICKS[idx % INITIAL_SEASONAL_PICKS.length].continent,
           origin: item.origin || 'Singapore',
-          tag: item.title || item.season || 'Seasonal Pick',
+          tag: item.title || item.persona_label || item.season || 'Trending AI Pick',
           reason: item.reason || 'Peak seasonal weather and local food highlights.',
           persona: item.persona || 'Family',
-          selfDrive: item.self_drive || false,
-          img: INITIAL_SEASONAL_PICKS[idx % 6].img
+          selfDrive: item.self_drive || item.selfDrive || false,
+          duration_days: item.duration_days || 5,
+          img: INITIAL_SEASONAL_PICKS[idx % INITIAL_SEASONAL_PICKS.length].img
         }));
         setSeasonalPicks(formatted);
       } else {
-        const fallback = await apiClient.getSeasonalPackages();
-        if (fallback) setSeasonalPicks(INITIAL_SEASONAL_PICKS);
+        const packages = await apiClient.getSeasonalPackages();
+        if (packages && typeof packages === 'object') {
+          const currentSeason = Object.keys(packages)[0] || 'summer';
+          const seasonItems = Array.isArray(packages) ? packages : (packages[currentSeason] || Object.values(packages)[0] || []);
+          if (seasonItems.length > 0) {
+            const formatted = seasonItems.map((item, idx) => ({
+              name: item.destination || item.title || 'Zurich, Switzerland',
+              continent: item.continent ? `🌐 ${item.continent}` : INITIAL_SEASONAL_PICKS[idx % INITIAL_SEASONAL_PICKS.length].continent,
+              origin: item.origin || 'Singapore',
+              tag: item.title || item.persona_label || 'Seasonal Pick',
+              reason: item.reason || 'Peak seasonal weather and local food highlights.',
+              persona: item.persona || 'Family',
+              selfDrive: item.self_drive || false,
+              duration_days: item.duration_days || 5,
+              img: INITIAL_SEASONAL_PICKS[idx % INITIAL_SEASONAL_PICKS.length].img
+            }));
+            setSeasonalPicks(formatted);
+          }
+        }
       }
     } catch (e) {
       console.warn('Using default seasonal picks:', e);
