@@ -149,20 +149,14 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
                 st.dataframe(df_map[["category", "day", "title", "lat", "lon", "geocoded"]], use_container_width=True)
 
         encoded_dest = urllib.parse.quote(res_destination)
-        col_gmap, col_osm = st.columns(2)
-        with col_osm:
-            st.markdown("#### 🗺️ OpenStreetMap")
-            if not df_map.empty:
-                osm_url = f"https://www.openstreetmap.org/export/embed.html?bbox={mean_lon-0.08:.4f},{mean_lat-0.08:.4f},{mean_lon+0.08:.4f},{mean_lat+0.08:.4f}&layer=mapnik&marker={mean_lat:.4f},{mean_lon:.4f}"
-                st.components.v1.iframe(osm_url, height=300, scrolling=False)
-                st.markdown(f"[👉 Open on OpenStreetMap](https://www.openstreetmap.org/?mlat={mean_lat}&mlon={mean_lon}#map=12/{mean_lat:.4f}/{mean_lon:.4f})")
-
-        with col_gmap:
-            if gmaps_key:
-                st.markdown("#### 🗺️ Google Maps")
-                gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
-                st.components.v1.iframe(gmaps_url, height=300, scrolling=True)
-            st.markdown(f"[👉 Open on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
+        st.markdown("#### 🗺️ Google Maps Location Explorer")
+        if gmaps_key:
+            gmaps_url = f"https://www.google.com/maps/embed/v1/search?key={gmaps_key}&q={encoded_dest}+attractions"
+        else:
+            gmaps_url = f"https://maps.google.com/maps?q={encoded_dest}+attractions&t=&z=13&ie=UTF8&iwloc=&output=embed"
+        
+        st.components.v1.iframe(gmaps_url, height=420, scrolling=True)
+        st.markdown(f"[👉 Open Destination on Google Maps](https://www.google.com/maps/search/?api=1&query={encoded_dest})")
 
         st.markdown("---")
         with st.expander("📊 Day-by-Day Tabular Itinerary"):
