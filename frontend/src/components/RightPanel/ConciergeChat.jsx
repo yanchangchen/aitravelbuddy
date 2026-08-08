@@ -74,6 +74,19 @@ export default function ConciergeChat() {
 
     startPlanning();
 
+    const calculateDays = (start, end) => {
+      if (!start || !end) return 5;
+      try {
+        const s = new Date(start);
+        const e = new Date(end);
+        const diffDays = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+        return diffDays > 0 && diffDays <= 30 ? diffDays : 5;
+      } catch {
+        return 5;
+      }
+    };
+    const calculatedDays = calculateDays(store.startDate, store.endDate);
+
     const inputs = {
       origin: store.origin || 'Singapore',
       destination: targetDest,
@@ -85,7 +98,7 @@ export default function ConciergeChat() {
       no_budget: store.noBudget,
       currency: store.currency || 'SGD',
       dates: store.startDate && store.endDate ? `${store.startDate} - ${store.endDate}` : 'Nov 15 - Nov 19, 2026',
-      num_days: 5,
+      num_days: calculatedDays,
       persona: extractedPersona || store.selectedPersona || 'Family',
       custom_persona_profile: store.selectedPersona === 'Custom' ? store.customPersona : customProfile,
       user_preferences: {

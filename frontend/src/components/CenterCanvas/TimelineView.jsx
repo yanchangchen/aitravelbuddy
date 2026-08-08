@@ -8,23 +8,25 @@ function parseItineraryMarkdown(text) {
   const dayBlocks = text.split(/(?=##?\s*Day\s*\d+)/i).filter(b => b.trim().length > 0);
   if (dayBlocks.length === 0) return [];
   
-  return dayBlocks.map((block, idx) => {
+  const parsed = dayBlocks.map((block, idx) => {
     const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
     const headerLine = lines[0] || `Day ${idx + 1}`;
     const dayMatch = headerLine.match(/Day\s*(\d+)[:\s-]*(.*)/i);
-    const dayNum = dayMatch ? dayMatch[1] : (idx + 1);
+    const dayNum = dayMatch ? parseInt(dayMatch[1], 10) : (idx + 1);
     const theme = dayMatch && dayMatch[2] ? dayMatch[2].replace(/^[:\s-]+/, '') : headerLine.replace(/^#+\s*/, '');
 
     const activities = [];
     lines.slice(1).forEach(line => {
-      if (line.startsWith('-') || line.startsWith('*')) {
-        const cleanLine = line.replace(/^[-*]\s*/, '');
+      // Catch bullet points (-, *, +), numbers (1., 2.), or bold headers (**Morning**)
+      const isBullet = /^[-*+]\s+/.test(line) || /^\d+\.\s+/.test(line) || /^\*\*[A-Za-z0-9\s():]+\*\*/.test(line);
+      if (isBullet) {
+        const cleanLine = line.replace(/^[-*+\d.]+\s*/, '');
         const costMatch = cleanLine.match(/(?:Est\.?\s*cost:\s*|cost:\s*)(S?\$[\d,]+|\$[\d,]+)/i);
         const costStr = costMatch ? costMatch[1] : null;
         
         let category = 'sightseeing';
         const lower = cleanLine.toLowerCase();
-        if (lower.includes('lunch') || lower.includes('dinner') || lower.includes('food') || lower.includes('cuisine') || lower.includes('market') || lower.includes('dining')) {
+        if (lower.includes('lunch') || lower.includes('dinner') || lower.includes('breakfast') || lower.includes('food') || lower.includes('cuisine') || lower.includes('market') || lower.includes('dining')) {
           category = 'dining';
         } else if (lower.includes('hotel') || lower.includes('check-in') || lower.includes('resort') || lower.includes('stay') || lower.includes('lodge')) {
           category = 'hotel';
@@ -47,6 +49,17 @@ function parseItineraryMarkdown(text) {
       activities: activities.length > 0 ? activities : [{ time: 'Full Day', title: block.replace(/^#+\s*/, ''), category: 'sightseeing' }]
     };
   });
+
+  // Deduplicate by day number and filter out empty / invalid blocks
+  const uniqueDaysMap = new Map();
+  parsed.forEach(d => {
+    // Prefer blocks that have parsed activities over empty fallback blocks
+    if (!uniqueDaysMap.has(d.day) || (uniqueDaysMap.get(d.day).activities.length <= 1 && d.activities.length > 1)) {
+      uniqueDaysMap.set(d.day, d);
+    }
+  });
+
+  return Array.from(uniqueDaysMap.values()).sort((a, b) => a.day - b.day);
 }
 
 export default function TimelineView() {
