@@ -1,7 +1,7 @@
 import asyncio
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core.graph import build_graph
 from core.db import get_saved_trips, get_trip_plan, save_trip_plan
@@ -12,20 +12,20 @@ router = APIRouter()
 logger = get_logger("trips_api")
 
 class TripPlanRequest(BaseModel):
-    origin: str
+    origin: Optional[str] = "Singapore"
     destination: str
-    budget: float
-    num_adults: int
-    num_children: int
-    num_infants: int
-    self_drive: bool
-    no_budget: bool
-    currency: str
-    dates: str
-    num_days: int
-    persona: str
-    custom_persona_profile: Optional[str] = None
-    user_preferences: Optional[str] = None
+    budget: Optional[float] = 0.0
+    num_adults: Optional[int] = 2
+    num_children: Optional[int] = 1
+    num_infants: Optional[int] = 0
+    self_drive: Optional[bool] = False
+    no_budget: Optional[bool] = True
+    currency: Optional[str] = "SGD"
+    dates: Optional[str] = "Nov 15 - Nov 19, 2026"
+    num_days: Optional[int] = 5
+    persona: Optional[str] = "Family"
+    custom_persona_profile: Optional[Union[Dict[str, Any], str]] = None
+    user_preferences: Optional[Union[Dict[str, Any], str]] = None
 
 class TripSaveRequest(BaseModel):
     destination: str

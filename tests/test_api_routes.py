@@ -73,6 +73,32 @@ def test_get_saved_trips(client):
     assert res.status_code == 200
     assert isinstance(res.json(), list)
 
+def test_rest_plan_trip(client):
+    payload = {
+        "origin": "Singapore",
+        "destination": "Kyoto, Japan",
+        "budget": 0,
+        "num_adults": 2,
+        "num_children": 1,
+        "num_infants": 0,
+        "self_drive": False,
+        "no_budget": True,
+        "currency": "SGD",
+        "dates": "2026-08-22 - 2026-08-26",
+        "num_days": 5,
+        "persona": "Family",
+        "custom_persona_profile": {"title": "Kyoto Momiji"},
+        "user_preferences": {
+            "dining": "Agent Recommended",
+            "lodging": "Boutique",
+            "rules": "Family trip"
+        }
+    }
+    with patch("core.agents._invoke_llm_with_retry", return_value="## Day 1: Ancient Temples\n- **Morning:** Kinkaku-ji\nSIGHTSEEING_TOTAL_SGD: 100\nFOOD_RETAIL_TOTAL_SGD: 100\nHOTEL_TOTAL_SGD: 100\nAIRFARE_TOTAL_SGD: 100"), patch("core.evaluation.quality_agent", return_value={"status": "approved", "judge_verdict": "VERDICT: PASS\nSCORE: 9", "budget_breakdown": "Passed", "budget_attempts": 1, "critique_history": []}):
+        res = client.post("/api/trips/plan", json=payload)
+    assert res.status_code == 200
+    assert "itinerary" in res.json()
+
 def test_export_locations(client):
     payload = {
         "result": {
