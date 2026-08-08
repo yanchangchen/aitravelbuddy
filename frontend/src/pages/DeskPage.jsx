@@ -89,6 +89,7 @@ export default function DeskPage() {
 
   useEffect(() => {
     if (autoRunPlan && store.backendStatus === 'up') {
+      store.setAutoRunPlan(false);
       handleStartPlan();
     }
   }, [autoRunPlan, store.backendStatus]);

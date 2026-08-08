@@ -149,58 +149,71 @@ export default function TimelineView() {
 }
 
 function renderParsedDays(days, selectedLocation, setSelectedLocation) {
-  return days.map((day, i) => (
-    <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} style={{ marginBottom: '2.5rem' }}>
-      <h2 style={{ fontSize: '1.35rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <span style={{ background: 'var(--accent-coral)', color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 700 }}>
-          Day {day.day}
-        </span>
-        {day.theme}
-      </h2>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {day.activities.map((act, j) => {
-          const borderColors = {
-            hotel: 'var(--accent-blue)',
-            sightseeing: 'var(--accent-coral)',
-            dining: 'var(--accent-orange)',
-            transport: 'var(--accent-green)'
-          };
-          const borderColor = borderColors[act.category] || 'var(--accent-coral)';
-          const isSelected = selectedLocation && (selectedLocation.name === act.title || selectedLocation.title === act.title);
+  if (!days || !Array.isArray(days) || days.length === 0) return null;
+  return days.map((day, i) => {
+    if (!day) return null;
+    const dayNumber = day.day || (i + 1);
+    const dayTheme = day.theme || `Day ${dayNumber} Exploration`;
+    const activities = Array.isArray(day.activities) ? day.activities : [];
 
-          return (
-            <div 
-              key={j} 
-              id={`timeline-card-${day.day}-${j}`}
-              onClick={() => setSelectedLocation({ name: act.title, title: act.title, day: day.day, category: act.category })}
-              className="activity-card glass-card" 
-              style={{ 
-                borderColor: isSelected ? 'var(--accent-coral)' : borderColor, 
-                borderLeftWidth: '5px', 
-                padding: '1rem 1.25rem',
-                cursor: 'pointer',
-                boxShadow: isSelected ? '0 0 15px rgba(255,107,107,0.35)' : 'none',
-                background: isSelected ? 'rgba(255, 107, 107, 0.08)' : undefined,
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: '0.95rem', color: isSelected ? 'var(--accent-coral)' : 'var(--text-primary)', fontWeight: isSelected ? 600 : 400, lineHeight: '1.5' }}>
-                    {act.title}
-                  </p>
+    return (
+      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }} style={{ marginBottom: '2.5rem' }}>
+        <h2 style={{ fontSize: '1.35rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ background: 'var(--accent-coral)', color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 700 }}>
+            Day {dayNumber}
+          </span>
+          {dayTheme}
+        </h2>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {activities.map((act, j) => {
+            if (!act) return null;
+            const actTitle = typeof act === 'string' ? act : (act.title || act.name || 'Scheduled Sightseeing');
+            const actCategory = typeof act === 'object' && act.category ? act.category : 'sightseeing';
+            const actCost = typeof act === 'object' ? act.cost : null;
+
+            const borderColors = {
+              hotel: 'var(--accent-blue)',
+              sightseeing: 'var(--accent-coral)',
+              dining: 'var(--accent-orange)',
+              transport: 'var(--accent-green)'
+            };
+            const borderColor = borderColors[actCategory] || 'var(--accent-coral)';
+            const isSelected = selectedLocation && (selectedLocation.name === actTitle || selectedLocation.title === actTitle);
+
+            return (
+              <div 
+                key={j} 
+                id={`timeline-card-${dayNumber}-${j}`}
+                onClick={() => setSelectedLocation && setSelectedLocation({ name: actTitle, title: actTitle, day: dayNumber, category: actCategory })}
+                className="activity-card glass-card" 
+                style={{ 
+                  borderColor: isSelected ? 'var(--accent-coral)' : borderColor, 
+                  borderLeftWidth: '5px', 
+                  padding: '1rem 1.25rem',
+                  cursor: 'pointer',
+                  boxShadow: isSelected ? '0 0 15px rgba(255,107,107,0.35)' : 'none',
+                  background: isSelected ? 'rgba(255, 107, 107, 0.08)' : undefined,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: '0.95rem', color: isSelected ? 'var(--accent-coral)' : 'var(--text-primary)', fontWeight: isSelected ? 600 : 400, lineHeight: '1.5' }}>
+                      {actTitle}
+                    </p>
+                  </div>
+                  {actCost && (
+                    <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--accent-green)', fontWeight: 600, fontSize: '0.8rem', marginLeft: '1rem', whiteSpace: 'nowrap' }}>
+                      {actCost}
+                    </span>
+                  )}
                 </div>
-                {act.cost && (
-                  <span className="badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--accent-green)', fontWeight: 600, fontSize: '0.8rem', marginLeft: '1rem', whiteSpace: 'nowrap' }}>
-                    {act.cost}
-                  </span>
-                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </motion.div>
-  ));
+            );
+          })}
+        </div>
+      </motion.div>
+    );
+  });
 }
