@@ -183,31 +183,43 @@ def extract_all_plan_locations(result_input, destination: str) -> list:
         hotel_lines = hotel_text.split("\n")
         for line in hotel_lines:
             line_str = line.strip()
-            hotel_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
-            if hotel_match:
-                h_name = hotel_match.group(1).strip()
-                h_clean = re.sub(r"[*_#]", "", h_name).strip()
-                if len(h_clean) > 3 and any(kw in h_clean.lower() for kw in ["hotel", "resort", "ryokan", "inn", "stay", "suite", "lodge"]):
-                    if h_clean.lower() not in seen_venues:
-                        seen_venues.add(h_clean.lower())
-                        coords = geocode_location(f"{h_clean}, {destination}") or geocode_location(h_clean)
-                        is_geocoded = coords is not None
+            # Match either ### Option 1: Hotel Name or - **Hotel Name**: detail
+            option_match = re.match(r"^###?\s*(?:Option\s*\d+:?|Hotel:?)\s*(.*?)(?:⭐|$)", line_str, re.IGNORECASE)
+            bullet_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
+            
+            h_name = None
+            if option_match:
+                h_name = option_match.group(1).strip()
+            elif bullet_match:
+                b_name = bullet_match.group(1).strip()
+                if any(kw in b_name.lower() for kw in ["hotel", "resort", "ryokan", "inn", "stay", "suite", "lodge"]):
+                    h_name = b_name
 
-                        if not coords:
-                            offset_lat = (hash(h_clean) % 1000 - 500) * 0.00003
-                            offset_lon = (hash(h_clean + "lon") % 1000 - 500) * 0.00003
-                            coords = (base_coords[0] + offset_lat, base_coords[1] + offset_lon)
+            if h_name:
+                h_clean = re.sub(r"[*_#()⭐]", "", h_name).strip()
+                if len(h_clean) > 3 and h_clean.lower() not in seen_venues and not h_clean.lower().startswith("location"):
+                    seen_venues.add(h_clean.lower())
+                    coords = geocode_location(f"{h_clean}, {destination}") or geocode_location(h_clean)
+                    is_geocoded = coords is not None
 
-                        locations.append({
-                            "category": "Hotel",
-                            "day": "Hotel",
-                            "title": h_clean,
-                            "query": f"{h_clean}, {destination}",
-                            "lat": coords[0],
-                            "lon": coords[1],
-                            "geocoded": is_geocoded,
-                            "color": [50, 130, 246, 220],
-                        })
+                    if not coords:
+                        offset_lat = (hash(h_clean) % 1000 - 500) * 0.00003
+                        offset_lon = (hash(h_clean + "lon") % 1000 - 500) * 0.00003
+                        coords = (base_coords[0] + offset_lat, base_coords[1] + offset_lon)
+
+                    locations.append({
+                        "category": "Hotel",
+                        "day": "Hotel",
+                        "title": h_clean,
+                        "name": h_clean,
+                        "query": f"{h_clean}, {destination}",
+                        "lat": coords[0],
+                        "lng": coords[1],
+                        "lon": coords[1],
+                        "geocoded": is_geocoded,
+                        "color": [50, 130, 246, 220],
+                        "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(h_clean + ', ' + destination)}"
+                    })
 
     # 3. Parse Dining & Food
     if food_text:
@@ -216,10 +228,20 @@ def extract_all_plan_locations(result_input, destination: str) -> list:
             line_str = line.strip()
             food_match = re.match(r"^[-*]\s*\*\*(.*?)\*\*:?\s*(.*)", line_str)
             if food_match:
-                f_name = food_match.group(1).strip()
-                f_clean = re.sub(r"[*_#]", "", f_name).strip()
-                if len(f_clean) > 3 and f_clean.lower() not in seen_venues:
-                    if any(kw in f_clean.lower() for kw in ["restaurant", "cafe", "bistro", "ramen", "market", "tofu", "food", "dining", "grill", "tea", "house", "bar", "noodle"]):
+                prefix = food_match.group(1).strip().lower()
+                detail = food_match.group(2).strip()
+                
+                f_name = None
+                if any(m in prefix for m in ["breakfast", "lunch", "dinner", "snack", "cafe", "food", "dining", "retail", "shopping"]):
+                    clean_detail = re.sub(r"—\s*Est\.\s*cost:.*", "", detail, flags=re.IGNORECASE).strip()
+                    parts = re.split(r"—|–|\(|\)", clean_detail)
+                    f_name = parts[0].strip() if parts else clean_detail
+                elif len(prefix) > 3 and any(kw in prefix for kw in ["restaurant", "cafe", "bistro", "ramen", "market", "tofu", "food", "dining", "grill", "tea", "house", "bar", "noodle"]):
+                    f_name = food_match.group(1).strip()
+
+                if f_name:
+                    f_clean = re.sub(r"[*_#]", "", f_name).strip()
+                    if len(f_clean) > 3 and f_clean.lower() not in seen_venues and not f_clean.lower().startswith("daily"):
                         seen_venues.add(f_clean.lower())
                         coords = geocode_location(f"{f_clean}, {destination}") or geocode_location(f_clean)
                         is_geocoded = coords is not None
@@ -233,11 +255,14 @@ def extract_all_plan_locations(result_input, destination: str) -> list:
                             "category": "Dining & Retail",
                             "day": "Dining",
                             "title": f_clean,
+                            "name": f_clean,
                             "query": f"{f_clean}, {destination}",
                             "lat": coords[0],
+                            "lng": coords[1],
                             "lon": coords[1],
                             "geocoded": is_geocoded,
                             "color": [255, 165, 0, 220],
+                            "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote(f_clean + ', ' + destination)}"
                         })
 
     # Fallback to destination city center if empty
