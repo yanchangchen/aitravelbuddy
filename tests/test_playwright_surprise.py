@@ -5,6 +5,9 @@ import sys
 import time
 import subprocess
 import unittest
+import pytest
+
+playwright = pytest.importorskip("playwright", reason="playwright not installed in this Python environment")
 from playwright.sync_api import sync_playwright
 
 if hasattr(sys.stdout, "reconfigure"):
