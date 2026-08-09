@@ -296,3 +296,25 @@ def get_trip_plan(trip_id: str) -> dict:
 
     return None
 
+
+def delete_trip_plan(trip_id: str) -> bool:
+    """Delete a trip plan from Supabase and local storage."""
+    deleted = False
+    if _supabase:
+        try:
+            _supabase.table("trip_plans").delete().eq("id", trip_id).execute()
+            logger.info(f"Trip plan '{trip_id}' deleted from Supabase.")
+            deleted = True
+        except Exception as e:
+            logger.error(f"Failed to delete trip plan from Supabase: {e}")
+
+    local_db = _load_local_data()
+    if trip_id in local_db:
+        del local_db[trip_id]
+        _save_local_data(local_db)
+        logger.info(f"Trip plan '{trip_id}' deleted from local storage.")
+        deleted = True
+
+    return deleted
+
+

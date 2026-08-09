@@ -34,6 +34,8 @@ export const useTripStore = create((set) => ({
   // Selected location sync (Timeline <-> Map) & Modifications
   selectedLocation: null,
   setSelectedLocation: (loc) => set({ selectedLocation: loc }),
+  activeMapFilter: 'all',
+  setActiveMapFilter: (filter) => set({ activeMapFilter: filter }),
   locationsList: [],
   setLocationsList: (locs) => set({ locationsList: locs }),
   updateItineraryText: (newText, newHotels) => set((state) => ({
@@ -142,12 +144,66 @@ export const useTripStore = create((set) => ({
   // Saved Trips
   savedTrips: [],
   setSavedTrips: (trips) => set({ savedTrips: trips }),
-  loadSavedTrip: (trip) => set({ 
-    planResult: trip, 
-    planStatus: 'complete',
-    destination: trip.destination || '',
-    origin: trip.origin || ''
-  }),
+  fetchSavedTrips: async () => {
+    try {
+      const trips = await apiClient.getSavedTrips();
+      if (Array.isArray(trips)) {
+        set({ savedTrips: trips });
+      }
+    } catch (e) {
+      console.warn("Failed to fetch saved trips:", e);
+    }
+  },
+  loadSavedTrip: async (trip) => {
+    let fullState = trip.state_data;
+    if (!fullState && trip.id) {
+      try {
+        fullState = await apiClient.getTripPlan(trip.id);
+      } catch (e) {
+        console.warn("Failed to fetch full trip details:", e);
+      }
+    }
+    const stateObj = fullState || trip;
+    const dest = stateObj.destination || trip.destination || '';
+    const orig = stateObj.origin || trip.origin || 'Singapore';
+    const dates = stateObj.dates || trip.dates || '';
+    let startD = '';
+    let endD = '';
+    if (dates && dates.includes('-')) {
+      const parts = dates.split('-');
+      if (parts[0].trim().match(/^\d{4}-\d{2}-\d{2}$/)) {
+        startD = parts[0].trim();
+        endD = parts[1].trim();
+      }
+    }
+    set({ 
+      planResult: stateObj, 
+      partialResult: {},
+      planStatus: 'complete',
+      destination: dest,
+      origin: orig,
+      startDate: startD,
+      endDate: endD,
+      selectedPersona: stateObj.persona ? (stateObj.persona.includes('Couple') ? 'Couple' : stateObj.persona.includes('Solo') ? 'Solo' : stateObj.persona.includes('Business') ? 'Business' : 'Family') : 'Family',
+      activeMapFilter: 'all',
+      selectedLocation: null
+    });
+  },
+  deleteSavedTrip: async (tripId) => {
+    try {
+      await apiClient.deleteTripPlan(tripId);
+      set((state) => ({
+        savedTrips: state.savedTrips.filter((t) => t.id !== tripId)
+      }));
+      return true;
+    } catch (e) {
+      console.warn("Delete trip API error, removing from local state:", e);
+      set((state) => ({
+        savedTrips: state.savedTrips.filter((t) => t.id !== tripId)
+      }));
+      return true;
+    }
+  },
 
   // UI State
   leftDrawerOpen: true,

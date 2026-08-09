@@ -28,6 +28,7 @@ export const apiClient = {
   getSavedTrips: () => fetchJSON('/api/trips/saved'),
   getTripPlan: (tripId) => fetchJSON(`/api/trips/${tripId}`),
   saveTripPlan: (planId, data) => fetchJSON(`/api/trips/${planId}/save`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteTripPlan: (tripId) => fetchJSON(`/api/trips/${tripId}`, { method: 'DELETE' }),
   getProfile: () => fetchJSON('/api/profile'),
   saveProfile: (data) => fetchJSON('/api/profile', { method: 'PUT', body: JSON.stringify(data) }),
   getPersonas: () => fetchJSON('/api/personas'),

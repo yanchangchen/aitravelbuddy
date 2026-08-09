@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field
 
 from core.graph import build_graph
-from core.db import get_saved_trips, get_trip_plan, save_trip_plan
+from core.db import get_saved_trips, get_trip_plan, save_trip_plan, delete_trip_plan
 from core.utils import build_recommendations_text, extract_all_plan_locations
 from core.logger import get_logger
 
@@ -155,6 +155,21 @@ async def save_trip(plan_id: str, request_data: TripSaveRequest):
         return {"status": "success", "plan_id": plan_id}
     except Exception as e:
         logger.error(f"❌ Error saving trip plan '{plan_id}': {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{trip_id}")
+async def delete_trip(trip_id: str):
+    try:
+        deleted = await asyncio.to_thread(delete_trip_plan, trip_id)
+        if not deleted:
+            logger.warning(f"⚠️ Trip plan not found for deletion: trip_id='{trip_id}'")
+            raise HTTPException(status_code=404, detail="Trip plan not found")
+        logger.info(f"🗑️ Deleted trip plan: trip_id='{trip_id}'")
+        return {"status": "success", "trip_id": trip_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting trip plan '{trip_id}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/export/text")

@@ -121,7 +121,12 @@ def render_plan_results(result: dict, inputs: dict, search_tool=None, llm=None):
         st.markdown(f"### 📍 Complete Trip Map — {res_destination}")
 
         from core.utils import extract_all_plan_locations
-        loc_list = extract_all_plan_locations(result, res_destination)
+        
+        @st.cache_data(show_spinner=False)
+        def _get_cached_locations(res_dict, dest_str):
+            return extract_all_plan_locations(res_dict, dest_str)
+
+        loc_list = _get_cached_locations(result, res_destination)
         df_map = pd.DataFrame(loc_list)
 
         if not df_map.empty:

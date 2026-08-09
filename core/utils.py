@@ -53,15 +53,25 @@ def extract_cost(text: str, label: str) -> float:
     return 0.0
 
 
+_GEOCODE_CACHE = {}
+
 def geocode_location(location_name: str):
-    """Geocode a location string to (lat, lon) tuple using OpenStreetMap Nominatim."""
+    """Geocode a location string to (lat, lon) tuple using OpenStreetMap Nominatim with memory caching."""
+    if not location_name or not isinstance(location_name, str):
+        return None
+    key = location_name.strip().lower()
+    if key in _GEOCODE_CACHE:
+        return _GEOCODE_CACHE[key]
+
     try:
         url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(location_name)}&format=json&limit=1"
         req = urllib.request.Request(url, headers={'User-Agent': 'TravelBuddyStreamlit/1.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=2) as resp:
             data = json.loads(resp.read().decode())
             if data:
-                return float(data[0]['lat']), float(data[0]['lon'])
+                coords = (float(data[0]['lat']), float(data[0]['lon']))
+                _GEOCODE_CACHE[key] = coords
+                return coords
     except Exception:
         pass
     return None

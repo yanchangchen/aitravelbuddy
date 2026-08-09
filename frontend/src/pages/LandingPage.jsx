@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button, GlassCard } from '../components/shared';
-import { Map as MapIcon, Zap, Calendar, Heart, RefreshCw } from 'lucide-react';
+import { Map as MapIcon, Zap, Calendar, Heart, RefreshCw, ShieldCheck, Navigation } from 'lucide-react';
 import { useTripStore } from '../stores/tripStore';
 import { apiClient } from '../api/client';
 
@@ -288,18 +288,18 @@ export default function LandingPage() {
       <section style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
         <GlassCard>
           <Zap size={32} color="var(--accent-coral)" style={{ marginBottom: '1rem' }} />
-          <h3>4 AI Agents</h3>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Collaborative agents handle research, planning, budgeting, and critique to build the perfect itinerary.</p>
+          <h3>6 Collaborative AI Agents</h3>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Lead Orchestrator, Sightseeing, Food & Retail, Hospitality, Purchasing, and Quality Judge work together in real-time.</p>
         </GlassCard>
         <GlassCard>
-          <MapIcon size={32} color="var(--accent-blue)" style={{ marginBottom: '1rem' }} />
-          <h3>Smart Budget Guard</h3>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Real-time cost tracking ensures your entire trip stays within your defined budget constraints.</p>
+          <ShieldCheck size={32} color="var(--accent-green)" style={{ marginBottom: '1rem' }} />
+          <h3>Deterministic SGD Budget Guard</h3>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Real-time cost tracking with exact Singapore Dollars (SGD) calculations across group airfares, hotels, dining, and car rentals.</p>
         </GlassCard>
         <GlassCard>
-          <Calendar size={32} color="var(--accent-green)" style={{ marginBottom: '1rem' }} />
-          <h3>Personalized Trips</h3>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>From backpacking solos to luxury family vacations, your personalized persona dictates the vibe.</p>
+          <Navigation size={32} color="var(--accent-blue)" style={{ marginBottom: '1rem' }} />
+          <h3>Live Maps & Direct Bookings</h3>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Interactive Google Maps itinerary explorer with day-by-day venue filters and direct verified booking links for flights and hotels.</p>
         </GlassCard>
       </section>
     </div>

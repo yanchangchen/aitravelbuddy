@@ -5,9 +5,8 @@ import { MapPin, ExternalLink, Navigation, Compass, Layers, Filter, Hotel, Utens
 import { motion } from 'framer-motion';
 
 export default function MapView() {
-  const { planResult, partialResult, destination, selectedLocation, setSelectedLocation } = useTripStore();
+  const { planResult, partialResult, destination, selectedLocation, setSelectedLocation, activeMapFilter, setActiveMapFilter } = useTripStore();
   const [locations, setLocations] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('all');
 
   const activeResult = planResult || (Object.keys(partialResult).length > 0 ? partialResult : null);
   const targetDest = activeResult?.destination || destination || 'Tokyo, Japan';
@@ -24,43 +23,61 @@ export default function MapView() {
     }
   }, [activeResult, targetDest]);
 
-  // Extract unique days for filter tabs
-  const availableDays = useMemo(() => {
-    const days = new Set();
+  // Extract unique days with counts for filter tabs
+  const daysSummary = useMemo(() => {
+    const dayCounts = {};
     locations.forEach(loc => {
       if (loc.day && loc.day.toLowerCase().startsWith('day')) {
-        days.add(loc.day);
+        dayCounts[loc.day] = (dayCounts[loc.day] || 0) + 1;
       }
     });
-    return Array.from(days).sort();
+    return Object.keys(dayCounts).sort().map(d => ({ day: d, count: dayCounts[d] }));
+  }, [locations]);
+
+  const hotelCount = useMemo(() => {
+    return locations.filter(l => l.category === 'Hotel' || l.day === 'Hotel').length;
+  }, [locations]);
+
+  const diningCount = useMemo(() => {
+    return locations.filter(l => l.category === 'Dining & Retail' || l.day === 'Dining').length;
   }, [locations]);
 
   // Filtered locations
+  const currentFilter = activeMapFilter || 'all';
   const filteredLocations = useMemo(() => {
-    if (activeFilter === 'all') return locations;
-    if (activeFilter === 'hotels') return locations.filter(l => l.category === 'Hotel' || l.day === 'Hotel');
-    if (activeFilter === 'dining') return locations.filter(l => l.category === 'Dining & Retail' || l.day === 'Dining');
-    return locations.filter(l => l.day === activeFilter);
-  }, [locations, activeFilter]);
+    if (currentFilter === 'all') return locations;
+    if (currentFilter === 'hotels') return locations.filter(l => l.category === 'Hotel' || l.day === 'Hotel');
+    if (currentFilter === 'dining') return locations.filter(l => l.category === 'Dining & Retail' || l.day === 'Dining');
+    return locations.filter(l => l.day === currentFilter);
+  }, [locations, currentFilter]);
 
   // Active query for Google Maps iframe
   const mapQuery = useMemo(() => {
     if (selectedLocation) {
       return selectedLocation.name || selectedLocation.title || selectedLocation.query || `${selectedLocation}, ${targetDest}`;
     }
-    if (activeFilter !== 'all' && filteredLocations.length > 0) {
-      const names = filteredLocations.slice(0, 3).map(l => l.title || l.name).join(' ');
+    if (currentFilter !== 'all' && filteredLocations.length > 0) {
+      const names = filteredLocations.slice(0, 4).map(l => l.title || l.name).join(' ');
       return `${names} ${targetDest}`;
     }
     if (locations.length > 0) {
-      const topSpots = locations.slice(0, 4).map(l => l.title || l.name).join(' ');
+      const topSpots = locations.slice(0, 5).map(l => l.title || l.name).join(' ');
       return `${topSpots} ${targetDest}`;
     }
     return `${targetDest} attractions`;
-  }, [selectedLocation, activeFilter, filteredLocations, locations, targetDest]);
+  }, [selectedLocation, currentFilter, filteredLocations, locations, targetDest]);
 
   const googleEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
-  const fullGoogleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+  
+  // Comprehensive Google Maps search URL plotting all filtered locations
+  const fullGoogleMapsUrl = useMemo(() => {
+    const targetList = filteredLocations.length > 0 ? filteredLocations : locations;
+    if (targetList.length > 0) {
+      const names = targetList.slice(0, 8).map(l => l.title || l.name).join(' ');
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${names} ${targetDest}`)}`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${targetDest} attractions`)}`;
+  }, [filteredLocations, locations, targetDest]);
 
   return (
     <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
@@ -68,7 +85,7 @@ export default function MapView() {
       <div style={{ padding: '0.6rem 1rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflowX: 'auto' }}>
           <button
-            onClick={() => { setActiveFilter('all'); setSelectedLocation(null); }}
+            onClick={() => { setActiveMapFilter('all'); setSelectedLocation(null); }}
             style={{
               padding: '0.35rem 0.75rem',
               borderRadius: '20px',
@@ -76,17 +93,17 @@ export default function MapView() {
               fontWeight: 600,
               border: 'none',
               cursor: 'pointer',
-              background: activeFilter === 'all' && !selectedLocation ? 'var(--accent-coral)' : 'var(--bg-tertiary)',
-              color: activeFilter === 'all' && !selectedLocation ? '#fff' : 'var(--text-secondary)'
+              background: currentFilter === 'all' && !selectedLocation ? 'var(--accent-coral)' : 'var(--bg-tertiary)',
+              color: currentFilter === 'all' && !selectedLocation ? '#fff' : 'var(--text-secondary)'
             }}
           >
             🗺️ All Itinerary Places ({locations.length})
           </button>
 
-          {availableDays.map(day => (
+          {daysSummary.map(({ day, count }) => (
             <button
               key={day}
-              onClick={() => { setActiveFilter(day); setSelectedLocation(null); }}
+              onClick={() => { setActiveMapFilter(day); setSelectedLocation(null); }}
               style={{
                 padding: '0.35rem 0.75rem',
                 borderRadius: '20px',
@@ -94,16 +111,16 @@ export default function MapView() {
                 fontWeight: 600,
                 border: 'none',
                 cursor: 'pointer',
-                background: activeFilter === day && !selectedLocation ? 'var(--accent-coral)' : 'var(--bg-tertiary)',
-                color: activeFilter === day && !selectedLocation ? '#fff' : 'var(--text-secondary)'
+                background: currentFilter === day && !selectedLocation ? 'var(--accent-coral)' : 'var(--bg-tertiary)',
+                color: currentFilter === day && !selectedLocation ? '#fff' : 'var(--text-secondary)'
               }}
             >
-              📅 {day}
+              📅 {day} ({count})
             </button>
           ))}
 
           <button
-            onClick={() => { setActiveFilter('hotels'); setSelectedLocation(null); }}
+            onClick={() => { setActiveMapFilter('hotels'); setSelectedLocation(null); }}
             style={{
               padding: '0.35rem 0.75rem',
               borderRadius: '20px',
@@ -111,15 +128,15 @@ export default function MapView() {
               fontWeight: 600,
               border: 'none',
               cursor: 'pointer',
-              background: activeFilter === 'hotels' ? 'var(--accent-blue)' : 'var(--bg-tertiary)',
-              color: activeFilter === 'hotels' ? '#fff' : 'var(--text-secondary)'
+              background: currentFilter === 'hotels' ? 'var(--accent-blue)' : 'var(--bg-tertiary)',
+              color: currentFilter === 'hotels' ? '#fff' : 'var(--text-secondary)'
             }}
           >
-            🏨 Hotels
+            🏨 Hotels ({hotelCount})
           </button>
 
           <button
-            onClick={() => { setActiveFilter('dining'); setSelectedLocation(null); }}
+            onClick={() => { setActiveMapFilter('dining'); setSelectedLocation(null); }}
             style={{
               padding: '0.35rem 0.75rem',
               borderRadius: '20px',
@@ -127,11 +144,11 @@ export default function MapView() {
               fontWeight: 600,
               border: 'none',
               cursor: 'pointer',
-              background: activeFilter === 'dining' ? 'var(--accent-orange)' : 'var(--bg-tertiary)',
-              color: activeFilter === 'dining' ? '#fff' : 'var(--text-secondary)'
+              background: currentFilter === 'dining' ? 'var(--accent-orange)' : 'var(--bg-tertiary)',
+              color: currentFilter === 'dining' ? '#fff' : 'var(--text-secondary)'
             }}
           >
-            🍽️ Dining
+            🍽️ Dining ({diningCount})
           </button>
         </div>
 

@@ -169,3 +169,28 @@ def test_export_excel_endpoint(client):
     assert "filename" in data
     assert "content" in data
     assert "Travel_Buddy" in data["filename"]
+
+def test_delete_trip_endpoint(client):
+    # Save a temporary trip
+    payload = {
+        "destination": "Zurich, Switzerland",
+        "travelers": 2,
+        "persona": "Couple",
+        "dates": "Oct 1 - Oct 5, 2026",
+        "state_data": {"itinerary": "Day 1: Lake Zurich"}
+    }
+    save_res = client.post("/api/trips/delete_test_id/save", json=payload)
+    assert save_res.status_code == 200
+
+    # Fetch saved trips to verify it exists
+    list_res = client.get("/api/trips/saved")
+    assert list_res.status_code == 200
+    trips = list_res.json()
+    assert len(trips) > 0
+
+    # Delete the trip using its ID
+    target_id = trips[0]["id"]
+    del_res = client.delete(f"/api/trips/{target_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "success"
+

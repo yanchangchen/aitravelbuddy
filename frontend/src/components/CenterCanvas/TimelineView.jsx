@@ -63,7 +63,7 @@ function parseItineraryMarkdown(text) {
 }
 
 export default function TimelineView() {
-  const { planResult, planStatus, destination, partialResult, selectedLocation, setSelectedLocation } = useTripStore();
+  const { planResult, planStatus, destination, partialResult, selectedLocation, setSelectedLocation, activeMapFilter, setActiveMapFilter } = useTripStore();
 
   if (planStatus === 'planning') {
     const currentItinerary = partialResult?.itinerary;
@@ -76,7 +76,7 @@ export default function TimelineView() {
               <span className="spinner" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', border: '2px solid var(--accent-blue)', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />
               Streaming live multi-agent itinerary generation...
             </div>
-            {renderParsedDays(parsedDays, selectedLocation, setSelectedLocation)}
+            {renderParsedDays(parsedDays, selectedLocation, setSelectedLocation, activeMapFilter)}
           </div>
         );
       }
@@ -118,10 +118,18 @@ export default function TimelineView() {
     );
   }
 
-  const daysData = activeResult.plan?.days || (activeResult.itinerary ? parseItineraryMarkdown(activeResult.itinerary) : []);
-  daysData.sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
+  const allDaysData = activeResult.plan?.days || (activeResult.itinerary ? parseItineraryMarkdown(activeResult.itinerary) : []);
+  allDaysData.sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
 
-  if (daysData.length === 0 && activeResult.itinerary) {
+  // Filter days if a specific Day filter is active
+  const isDayFilter = activeMapFilter && activeMapFilter.toLowerCase().startsWith('day');
+  const filteredDays = isDayFilter
+    ? allDaysData.filter(d => `Day ${d.day}`.toLowerCase() === activeMapFilter.toLowerCase() || String(d.day) === activeMapFilter.replace(/\D/g, ''))
+    : allDaysData;
+
+  const displayDays = filteredDays.length > 0 ? filteredDays : allDaysData;
+
+  if (displayDays.length === 0 && activeResult.itinerary) {
     return (
       <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
         <h2 style={{ fontSize: '1.5rem', color: 'var(--accent-coral)', marginBottom: '1rem' }}>Itinerary Details</h2>
@@ -132,9 +140,23 @@ export default function TimelineView() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      {renderParsedDays(daysData, selectedLocation, setSelectedLocation)}
+      {isDayFilter && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--accent-coral)', borderRadius: '8px', padding: '0.5rem 1rem', marginBottom: '1.5rem' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+            Viewing: <strong style={{ color: 'var(--accent-coral)' }}>{activeMapFilter}</strong>
+          </span>
+          <button 
+            onClick={() => setActiveMapFilter('all')}
+            style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+          >
+            Show All Days
+          </button>
+        </div>
+      )}
+
+      {renderParsedDays(displayDays, selectedLocation, setSelectedLocation, activeMapFilter)}
       
-      {activeResult.food_and_retail && (
+      {activeResult.food_and_retail && (!isDayFilter || activeMapFilter === 'all' || activeMapFilter === 'dining') && (
         <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-subtle)' }}>
           <h3 style={{ fontSize: '1.25rem', color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
             <Utensils size={20} /> Dining & Retail Highlights
@@ -148,7 +170,7 @@ export default function TimelineView() {
   );
 }
 
-function renderParsedDays(days, selectedLocation, setSelectedLocation) {
+function renderParsedDays(days, selectedLocation, setSelectedLocation, activeMapFilter) {
   if (!days || !Array.isArray(days) || days.length === 0) return null;
   return days.map((day, i) => {
     if (!day) return null;
