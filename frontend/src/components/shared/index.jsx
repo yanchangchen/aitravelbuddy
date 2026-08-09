@@ -39,8 +39,8 @@ export const Select = ({ label, options = [], ...props }) => (
   </div>
 );
 
-export const Card = ({ children, className = '' }) => (
-  <div className={`glass-card ${className}`}>
+export const Card = ({ children, className = '', ...props }) => (
+  <div className={`glass-card ${className}`} {...props}>
     {children}
   </div>
 );
